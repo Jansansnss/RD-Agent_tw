@@ -1,3 +1,6 @@
-# Downloaded raw data and generated HDF5 — never commit
+# Downloaded raw data, generated HDF5, and run logs — never commit
 tw_raw_data/
+tw_raw_mini/
+tw_raw_full/
 *.h5
+*.log

@@ -92,6 +92,16 @@ def _payload_to_frame(payload: dict, table_key: str = "data") -> pd.DataFrame:
     rows = payload.get(table_key) or []
     if not fields or not rows:
         return pd.DataFrame()
+    # TWSE occasionally returns a payload where len(fields) != len(row)
+    # (mid-period schema drift — e.g. T86 added 3 sub-columns in 2022).
+    # Pad to the wider width so the day's known signals are retained; unknown
+    # extras land under '_extra_N' and are dropped by keep_cols downstream.
+    width = max(len(fields), max(len(r) for r in rows))
+    if len(fields) != width or any(len(r) != width for r in rows):
+        print(f"  WARNING schema drift: fields={len(fields)} row={len(rows[0])} -> padded to {width}")
+    if len(fields) < width:
+        fields = list(fields) + [f"_extra_{i}" for i in range(width - len(fields))]
+    rows = [list(r) + [None] * (width - len(r)) for r in rows]
     return pd.DataFrame(rows, columns=fields)
 
 

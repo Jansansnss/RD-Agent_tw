@@ -86,7 +86,13 @@ def build(input_dir: Path, output: Path, debug: bool = False) -> None:
     if inst_cols:
         df["total_inst_net"] = df[inst_cols].sum(axis=1)
 
-    # MultiIndex (datetime, instrument) — Qlib convention
+    # MultiIndex (datetime, instrument) — Qlib convention.
+    # Drop duplicate (date, instrument) rows that occasionally appear in TWSE
+    # STOCK_DAY (e.g. corporate-action days returning pre+post-adjustment rows).
+    before = len(df)
+    df = df.drop_duplicates(subset=["date", "instrument"], keep="last")
+    if len(df) < before:
+        print(f"  Dropped {before - len(df)} duplicate (date, instrument) rows")
     df = df.sort_values(["date", "instrument"]).reset_index(drop=True)
     df = df.set_index(["date", "instrument"])
     df.index.names = ["datetime", "instrument"]

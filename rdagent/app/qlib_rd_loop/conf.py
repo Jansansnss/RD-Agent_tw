@@ -170,7 +170,25 @@ class QuantBasePropSetting(BasePropSetting):
     """End date of the test / backtest segment"""
 
 
+class FactorTwBasePropSetting(FactorBasePropSetting):
+    """Taiwan-market overrides — same loop, different scenario class and dates
+    aligned to our TWSE bin data window."""
+
+    model_config = SettingsConfigDict(env_prefix="QLIB_FACTOR_TW_", protected_namespaces=())
+
+    scen: str = "rdagent.scenarios.qlib.experiment.factor_tw_experiment.QlibTwFactorScenario"
+    """Scenario class for Qlib Taiwan Factor"""
+
+    train_start: str = "2022-01-01"
+    train_end: str = "2023-06-30"
+    valid_start: str = "2023-07-01"
+    valid_end: str = "2023-12-31"
+    test_start: str = "2024-01-01"
+    test_end: Optional[str] = "2024-12-27"  # one trading day buffer for next-day backtest fill
+
+
 FACTOR_PROP_SETTING = FactorBasePropSetting()
+FACTOR_TW_PROP_SETTING = FactorTwBasePropSetting()
 FACTOR_FROM_REPORT_PROP_SETTING = FactorFromReportPropSetting()
 MODEL_PROP_SETTING = ModelBasePropSetting()
 QUANT_PROP_SETTING = QuantBasePropSetting()
