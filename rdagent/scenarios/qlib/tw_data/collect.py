@@ -32,11 +32,34 @@ Usage:
 import argparse
 import time
 from datetime import date
+from io import StringIO
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 import requests
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
+
+def _make_progress() -> Progress:
+    return Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>5.1f}%"),
+        TextColumn("elapsed"),
+        TimeElapsedColumn(),
+        TextColumn("eta"),
+        TimeRemainingColumn(),
+        TextColumn("{task.fields[postfix]}"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +136,7 @@ def get_twse_stock_list() -> list[str]:
     """Return all TWSE ordinary stock codes (4-digit numeric only)."""
     url = "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2"
     resp = requests.get(url, headers=TWSE_HEADERS, timeout=30)
-    tables = pd.read_html(resp.text)
+    tables = pd.read_html(StringIO(resp.text))
     df = tables[0]
     df.columns = df.iloc[0]
     df = df.iloc[1:].reset_index(drop=True)
@@ -162,16 +185,40 @@ def download_ohlcv(codes: list[str], start: str, end: str, output_dir: Path) -> 
     if len(months) == 0:
         months = pd.DatetimeIndex([pd.Timestamp(start).replace(day=1)])
 
-    print(f"Downloading OHLCV for {len(codes)} stocks × {len(months)} months ...")
+    parts_dir = output_dir / "_ohlcv_parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resume: skip (code, month) pairs whose part file already exists.
+    pending: list[tuple[str, pd.Timestamp]] = []
+    for code in codes:
+        for m in months:
+            if not (parts_dir / f"{code}_{m.strftime('%Y%m')}.csv").exists():
+                pending.append((code, m))
+    total_all = len(codes) * len(months)
+    print(
+        f"Downloading OHLCV for {len(codes)} stocks × {len(months)} months "
+        f"= {total_all} requests ({total_all - len(pending)} cached, {len(pending)} pending) ..."
+    )
+
+    if pending:
+        with _make_progress() as progress:
+            task = progress.add_task("OHLCV", total=len(pending), postfix="")
+            for code, m in pending:
+                ym = m.strftime("%Y%m01")
+                df = _fetch_stock_month(code, ym)
+                # Always write a part file (empty marker prevents re-fetch).
+                df.to_csv(parts_dir / f"{code}_{m.strftime('%Y%m')}.csv", index=False)
+                time.sleep(TWSE_SLEEP)
+                progress.update(task, advance=1, postfix=f"{code} {ym}")
+
     frames = []
     for code in codes:
         for m in months:
-            ym = m.strftime("%Y%m01")
-            df = _fetch_stock_month(code, ym)
-            if not df.empty:
-                frames.append(df)
-            time.sleep(TWSE_SLEEP)
-        print(f"  done {code}")
+            p = parts_dir / f"{code}_{m.strftime('%Y%m')}.csv"
+            if p.exists() and p.stat().st_size > 0:
+                df = pd.read_csv(p)
+                if not df.empty:
+                    frames.append(df)
 
     if not frames:
         print("  No OHLCV data retrieved.")
@@ -179,7 +226,6 @@ def download_ohlcv(codes: list[str], start: str, end: str, output_dir: Path) -> 
 
     ohlcv = pd.concat(frames, ignore_index=True)
     ohlcv["date"] = pd.to_datetime(ohlcv["date"])
-    # Trim to requested window
     ohlcv = ohlcv[(ohlcv["date"] >= pd.Timestamp(start)) & (ohlcv["date"] <= pd.Timestamp(end))]
     ohlcv.to_csv(output_dir / "ohlcv.csv", index=False)
     print(f"  Saved ohlcv.csv  ({len(ohlcv):,} rows)")
@@ -201,16 +247,34 @@ def _download_daily(
 ) -> None:
     """Fetch a per-day all-stocks endpoint over a date range and save to CSV."""
     dates = pd.date_range(start, end, freq="B")
+    parts_dir = output_dir / f"_{Path(filename).stem}_parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+
+    pending = [d for d in dates if not (parts_dir / f"{d.strftime('%Y%m%d')}.csv").exists()]
+    print(
+        f"Downloading {name} for {len(dates)} business days "
+        f"({len(dates) - len(pending)} cached, {len(pending)} pending) ..."
+    )
+    if pending:
+        with _make_progress() as progress:
+            task = progress.add_task(name, total=len(pending), postfix="")
+            for d in pending:
+                ymd = d.strftime("%Y%m%d")
+                payload = _twse_get(url_template.format(date=ymd))
+                df = _payload_to_frame(payload)
+                if not df.empty:
+                    df["date"] = pd.to_datetime(ymd, format="%Y%m%d")
+                df.to_csv(parts_dir / f"{ymd}.csv", index=False)
+                time.sleep(TWSE_SLEEP)
+                progress.update(task, advance=1, postfix=ymd)
+
     frames = []
-    print(f"Downloading {name} for {len(dates)} business days ...")
     for d in dates:
-        ymd = d.strftime("%Y%m%d")
-        payload = _twse_get(url_template.format(date=ymd))
-        df = _payload_to_frame(payload)
-        if not df.empty:
-            df["date"] = pd.to_datetime(ymd, format="%Y%m%d")
-            frames.append(df)
-        time.sleep(TWSE_SLEEP)
+        p = parts_dir / f"{d.strftime('%Y%m%d')}.csv"
+        if p.exists() and p.stat().st_size > 0:
+            df = pd.read_csv(p)
+            if not df.empty:
+                frames.append(df)
 
     if not frames:
         print(f"  No {name} data retrieved.")
@@ -277,28 +341,41 @@ MARGIN_NUM_COLS = [c for c in MARGIN_COLS if c.startswith(("margin_", "short_", 
 
 def download_margin(start, end, output_dir):
     dates = pd.date_range(start, end, freq="B")
+    parts_dir = output_dir / "_margin_parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+    pending = [d for d in dates if not (parts_dir / f"{d.strftime('%Y%m%d')}.csv").exists()]
+    print(
+        f"Downloading 融資融券 (MI_MARGN) for {len(dates)} business days "
+        f"({len(dates) - len(pending)} cached, {len(pending)} pending) ..."
+    )
+    if pending:
+        with _make_progress() as progress:
+            task = progress.add_task("MI_MARGN", total=len(pending), postfix="")
+            for d in pending:
+                ymd = d.strftime("%Y%m%d")
+                url = (
+                    "https://www.twse.com.tw/exchangeReport/MI_MARGN"
+                    f"?response=json&date={ymd}&selectType=ALL"
+                )
+                payload = _twse_get(url)
+                df = pd.DataFrame()
+                if payload.get("stat") == "OK":
+                    tables = payload.get("tables") or []
+                    if len(tables) >= 2 and tables[1].get("data"):
+                        rows = tables[1]["data"]
+                        df = pd.DataFrame(rows, columns=MARGIN_COLS[: len(rows[0])])
+                        df["date"] = pd.to_datetime(ymd, format="%Y%m%d")
+                df.to_csv(parts_dir / f"{ymd}.csv", index=False)
+                time.sleep(TWSE_SLEEP)
+                progress.update(task, advance=1, postfix=ymd)
+
     frames = []
-    print(f"Downloading 融資融券 (MI_MARGN) for {len(dates)} business days ...")
     for d in dates:
-        ymd = d.strftime("%Y%m%d")
-        url = (
-            "https://www.twse.com.tw/exchangeReport/MI_MARGN"
-            f"?response=json&date={ymd}&selectType=ALL"
-        )
-        payload = _twse_get(url)
-        if payload.get("stat") != "OK":
-            time.sleep(TWSE_SLEEP)
-            continue
-        tables = payload.get("tables") or []
-        # Table[1] is per-stock detail; table[0] is market-wide summary.
-        if len(tables) < 2 or not tables[1].get("data"):
-            time.sleep(TWSE_SLEEP)
-            continue
-        rows = tables[1]["data"]
-        df = pd.DataFrame(rows, columns=MARGIN_COLS[: len(rows[0])])
-        df["date"] = pd.to_datetime(ymd, format="%Y%m%d")
-        frames.append(df)
-        time.sleep(TWSE_SLEEP)
+        p = parts_dir / f"{d.strftime('%Y%m%d')}.csv"
+        if p.exists() and p.stat().st_size > 0:
+            df = pd.read_csv(p)
+            if not df.empty:
+                frames.append(df)
 
     if not frames:
         print("  No 融資融券 data retrieved.")
