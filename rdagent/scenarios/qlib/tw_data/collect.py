@@ -30,6 +30,7 @@ Usage:
 """
 
 import argparse
+import sys
 import time
 from datetime import date
 from io import StringIO
@@ -121,7 +122,12 @@ def _payload_to_frame(payload: dict, table_key: str = "data") -> pd.DataFrame:
     # extras land under '_extra_N' and are dropped by keep_cols downstream.
     width = max(len(fields), max(len(r) for r in rows))
     if len(fields) != width or any(len(r) != width for r in rows):
-        print(f"  WARNING schema drift: fields={len(fields)} row={len(rows[0])} -> padded to {width}")
+        # Stderr so it survives `2> warnings.log` without disrupting Rich (stdout).
+        widths = sorted({len(r) for r in rows})
+        print(
+            f"  WARNING schema drift: fields={len(fields)} row_widths={widths} -> padded to {width}",
+            file=sys.stderr,
+        )
     if len(fields) < width:
         fields = list(fields) + [f"_extra_{i}" for i in range(width - len(fields))]
     rows = [list(r) + [None] * (width - len(r)) for r in rows]
@@ -215,10 +221,14 @@ def download_ohlcv(codes: list[str], start: str, end: str, output_dir: Path) -> 
     for code in codes:
         for m in months:
             p = parts_dir / f"{code}_{m.strftime('%Y%m')}.csv"
-            if p.exists() and p.stat().st_size > 0:
+            if not (p.exists() and p.stat().st_size > 0):
+                continue
+            try:
                 df = pd.read_csv(p)
-                if not df.empty:
-                    frames.append(df)
+            except pd.errors.EmptyDataError:
+                continue
+            if not df.empty:
+                frames.append(df)
 
     if not frames:
         print("  No OHLCV data retrieved.")
@@ -271,10 +281,14 @@ def _download_daily(
     frames = []
     for d in dates:
         p = parts_dir / f"{d.strftime('%Y%m%d')}.csv"
-        if p.exists() and p.stat().st_size > 0:
+        if not (p.exists() and p.stat().st_size > 0):
+            continue
+        try:
             df = pd.read_csv(p)
-            if not df.empty:
-                frames.append(df)
+        except pd.errors.EmptyDataError:
+            continue
+        if not df.empty:
+            frames.append(df)
 
     if not frames:
         print(f"  No {name} data retrieved.")
@@ -372,10 +386,14 @@ def download_margin(start, end, output_dir):
     frames = []
     for d in dates:
         p = parts_dir / f"{d.strftime('%Y%m%d')}.csv"
-        if p.exists() and p.stat().st_size > 0:
+        if not (p.exists() and p.stat().st_size > 0):
+            continue
+        try:
             df = pd.read_csv(p)
-            if not df.empty:
-                frames.append(df)
+        except pd.errors.EmptyDataError:
+            continue
+        if not df.empty:
+            frames.append(df)
 
     if not frames:
         print("  No 融資融券 data retrieved.")

@@ -83,6 +83,7 @@ def test_embedding(embedding_model, embedding_api_key, embedding_api_base):
             api_key=embedding_api_key,
             api_base=embedding_api_base,
             input="Hello world!",
+            encoding_format="float",
         )
         logger.info("✅ Embedding test passed.")
         return True
