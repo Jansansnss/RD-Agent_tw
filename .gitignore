@@ -7,6 +7,7 @@ release-notes.md
 typescript*
 tmp/
 .ai/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

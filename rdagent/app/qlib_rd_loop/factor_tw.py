@@ -2,9 +2,10 @@
 Taiwan-market factor R&D loop. Mirrors factor.py — only the prop setting changes.
 
 Usage:
-    python rdagent/app/qlib_rd_loop/factor_tw.py
+    python rdagent/app/qlib_rd_loop/factor_tw.py --dataset_name tw_data
 """
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -22,8 +23,11 @@ def main(
     checkout: bool = True,
     checkout_path: Optional[str] = None,
     base_features_path: Optional[str] = None,
+    dataset_name: str = "tw_data",
     **kwargs,
 ):
+    os.environ["QLIB_DATASET_NAME"] = dataset_name
+
     if checkout_path is not None:
         checkout = Path(checkout_path)
 

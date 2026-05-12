@@ -39,6 +39,12 @@ from typing import Optional
 
 import pandas as pd
 import requests
+
+try:
+    from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _paths import DATA_DIR
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -106,6 +112,23 @@ def _to_num(s) -> Optional[float]:
         return float(s.replace(",", "").replace("+", ""))
     except ValueError:
         return None
+
+
+def _to_num_vec(col: pd.Series) -> pd.Series:
+    """Vectorized equivalent of _to_num for a whole Series.
+
+    Same semantics as _to_num applied row-by-row, but processed in numpy/C:
+    strips ',' and '+', coerces parse failures (incl. '--', 'X', 'N/A', '')
+    to NaN. Required when the underlying frame is large (10M+ rows): the
+    Python-per-row version was the OOM bottleneck in
+    collect_finmind.download_institutional.
+    """
+    cleaned = (
+        col.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("+", "", regex=False)
+    )
+    return pd.to_numeric(cleaned, errors="coerce")
 
 
 def _payload_to_frame(payload: dict, table_key: str = "data") -> pd.DataFrame:
@@ -495,7 +518,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=str(date.today()))
-    parser.add_argument("--output_dir", default="tw_raw_data")
+    parser.add_argument("--output_dir", default=str(DATA_DIR / "tw_raw_data"))
     parser.add_argument(
         "--codes",
         default="",

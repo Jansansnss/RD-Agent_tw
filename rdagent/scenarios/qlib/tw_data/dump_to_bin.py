@@ -19,10 +19,17 @@ Usage:
 """
 import argparse
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+try:
+    from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _paths import DATA_DIR
 
 DATA_FILES = [
     "ohlcv.csv",
@@ -130,7 +137,7 @@ def dump(input_dir: Path, out_dir: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input_dir", default="tw_raw_mini")
+    ap.add_argument("--input_dir", default=str(DATA_DIR / "tw_raw_mini"))
     ap.add_argument("--out_dir", default="~/.qlib/qlib_data/tw_data")
     args = ap.parse_args()
     dump(Path(args.input_dir), Path(args.out_dir).expanduser())

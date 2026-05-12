@@ -38,9 +38,16 @@ TODO future work:
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+try:
+    from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _paths import DATA_DIR
 
 
 # Order matters: ohlcv is the base, others left-joined onto it
@@ -113,8 +120,8 @@ def build(input_dir: Path, output: Path, debug: bool = False) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_dir", default="tw_raw_data")
-    parser.add_argument("--output", default="tw_daily.h5")
+    parser.add_argument("--input_dir", default=str(DATA_DIR / "tw_raw_data"))
+    parser.add_argument("--output", default=str(DATA_DIR / "tw_daily.h5"))
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 

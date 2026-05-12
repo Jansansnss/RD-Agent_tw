@@ -179,12 +179,20 @@ class FactorTwBasePropSetting(FactorBasePropSetting):
     scen: str = "rdagent.scenarios.qlib.experiment.factor_tw_experiment.QlibTwFactorScenario"
     """Scenario class for Qlib Taiwan Factor"""
 
-    train_start: str = "2022-01-01"
-    train_end: str = "2023-06-30"
-    valid_start: str = "2023-07-01"
-    valid_end: str = "2023-12-31"
-    test_start: str = "2024-01-01"
-    test_end: Optional[str] = "2024-12-27"  # one trading day buffer for next-day backtest fill
+    hypothesis2experiment: str = (
+        "rdagent.scenarios.qlib.proposal.factor_proposal.QlibTwFactorHypothesis2Experiment"
+    )
+    """TW converter — wraps tasks in QlibTwFactorExperiment (factor_template_tw/)."""
+
+    runner: str = "rdagent.scenarios.qlib.developer.factor_runner.QlibTwFactorRunner"
+    """TW runner — feeds qrun the TW date window."""
+
+    train_start: str = "2021-01-01"
+    train_end: str = "2023-12-31"
+    valid_start: str = "2024-01-01"
+    valid_end: str = "2024-12-31"
+    test_start: str = "2025-01-01"
+    test_end: Optional[str] = "2026-05-09"  # rolling end — bump to current date when re-running
 
 
 FACTOR_PROP_SETTING = FactorBasePropSetting()

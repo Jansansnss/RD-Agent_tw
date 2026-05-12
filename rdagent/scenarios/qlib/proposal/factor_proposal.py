@@ -5,6 +5,7 @@ from rdagent.components.coder.factor_coder.factor import FactorExperiment, Facto
 from rdagent.components.proposal import FactorHypothesis2Experiment, FactorHypothesisGen
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
+from rdagent.scenarios.qlib.experiment.factor_tw_experiment import QlibTwFactorExperiment
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils.agent.tpl import T
@@ -59,6 +60,9 @@ class QlibFactorHypothesisGen(FactorHypothesisGen):
 
 
 class QlibFactorHypothesis2Experiment(FactorHypothesis2Experiment):
+    experiment_cls: type[QlibFactorExperiment] = QlibFactorExperiment
+    """Experiment class to instantiate. Subclasses override for region-specific workspaces."""
+
     def prepare_context(self, hypothesis: Hypothesis, trace: Trace) -> Tuple[dict | bool]:
         if isinstance(trace.scen, QlibQuantScenario):
             scenario = trace.scen.get_scenario_all_desc(action="factor")
@@ -108,8 +112,8 @@ class QlibFactorHypothesis2Experiment(FactorHypothesis2Experiment):
                 )
             )
 
-        exp = QlibFactorExperiment(tasks, hypothesis=hypothesis)
-        exp.based_experiments = [QlibFactorExperiment(sub_tasks=[])] + [
+        exp = self.experiment_cls(tasks, hypothesis=hypothesis)
+        exp.based_experiments = [self.experiment_cls(sub_tasks=[])] + [
             t[0] for t in trace.hist if t[1] and isinstance(t[0], FactorExperiment)
         ]
 
@@ -130,3 +134,10 @@ class QlibFactorHypothesis2Experiment(FactorHypothesis2Experiment):
 
         exp.tasks = unique_tasks
         return exp
+
+
+class QlibTwFactorHypothesis2Experiment(QlibFactorHypothesis2Experiment):
+    """Taiwan variant — wraps tasks in QlibTwFactorExperiment so the workspace
+    is materialized from factor_template_tw/ (provider_uri tw_data, market all)."""
+
+    experiment_cls = QlibTwFactorExperiment

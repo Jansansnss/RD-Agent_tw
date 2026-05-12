@@ -10,7 +10,6 @@ Everything else (CoSTEER coder, runner, hypothesis generation, feedback) is reus
 from QlibFactorScenario via inheritance — the runner is region-agnostic and just
 calls `qrun conf_baseline.yaml` inside the workspace.
 """
-from copy import deepcopy
 from pathlib import Path
 
 from rdagent.components.coder.factor_coder.factor import FactorExperiment
@@ -36,11 +35,11 @@ class QlibTwFactorExperiment(QlibFactorExperiment):
 
 class QlibTwFactorScenario(QlibFactorScenario):
     """Taiwan-market scenario: overrides the source-data description so the LLM
-    knows it's working with TWSE blue chips and the Taiwan-specific signal set."""
+    knows it's working with TWSE blue chips and the Taiwan-specific signal set.
+    Skips the CN-data materialization (daily_pv_all.h5) the parent uses."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._source_data = deepcopy(_TW_SOURCE_DATA_DESC)
+    def _load_source_data(self) -> str:
+        return _TW_SOURCE_DATA_DESC
 
 
 _TW_SOURCE_DATA_DESC = """\
@@ -49,7 +48,7 @@ TWSE's open data endpoints and stored in Qlib's binary on-disk format at
 ~/.qlib/qlib_data/tw_data.
 
 Universe: TWSE-listed ordinary stocks (4-digit codes, zfilled). Smoke runs use a
-权值股 subset (2330 TSMC, 2317 Hon Hai, 2454 MediaTek, 2412 Chunghwa Telecom,
+權值股 subset (2330 TSMC, 2317 Hon Hai, 2454 MediaTek, 2412 Chunghwa Telecom,
 2882 Cathay Financial). The benchmark is currently 2330 as a placeholder until
 TAIEX / 0050.TW is ingested.
 

@@ -35,7 +35,7 @@ class QlibFactorScenario(Scenario):
                 runtime_environment=self.get_runtime_environment(),
             )
         )
-        self._source_data = deepcopy(get_data_folder_intro())
+        self._source_data = deepcopy(self._load_source_data())
         self._output_format = deepcopy(T(".prompts:qlib_factor_output_format").r())
         self._interface = deepcopy(T(".prompts:qlib_factor_interface").r())
         self._strategy = deepcopy(T(".prompts:qlib_factor_strategy").r())
@@ -51,6 +51,11 @@ class QlibFactorScenario(Scenario):
                 test_end=FACTOR_PROP_SETTING.test_end,
             )
         )
+
+    def _load_source_data(self) -> str:
+        """Override in subclasses to swap in a region-specific source-data description.
+        Default uses the CN qlib data pipeline (materializes daily_pv via Docker)."""
+        return get_data_folder_intro()
 
     @property
     def background(self) -> str:

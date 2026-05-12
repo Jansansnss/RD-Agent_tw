@@ -1516,16 +1516,19 @@ class QTDockerEnv(DockerEnv):
 
     def prepare(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         """
-        Download image & data if it doesn't exist
+        Verify the requested qlib dataset exists. Never auto-downloads — datasets
+        are prepared out-of-band (e.g. TW via collect.py + dump_to_bin.py).
         """
         super().prepare()
         qlib_data_path = next(iter(self.conf.extra_volumes.keys()))
-        if not (Path(qlib_data_path) / "qlib_data" / "cn_data").exists():
-            logger.info("We are downloading!")
-            cmd = "python -m qlib.run.get_data qlib_data --target_dir ~/.qlib/qlib_data/cn_data --region cn --interval 1d --delete_old False"
-            self.check_output(entry=cmd)
-        else:
-            logger.info("Data already exists. Download skipped.")
+        dataset_name = os.environ.get("QLIB_DATASET_NAME", "tw_data")
+        target = Path(qlib_data_path) / "qlib_data" / dataset_name
+        if not target.exists() or not any(target.iterdir()):
+            raise FileNotFoundError(
+                f"Qlib dataset '{dataset_name}' not found at {target}. "
+                f"Prepare it before running (set QLIB_DATASET_NAME or pass --dataset_name)."
+            )
+        logger.info(f"Using qlib dataset '{dataset_name}' at {target}")
 
 
 class KGDockerEnv(DockerEnv):

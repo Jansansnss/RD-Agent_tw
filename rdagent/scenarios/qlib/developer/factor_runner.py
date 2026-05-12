@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -8,7 +9,7 @@ from rdagent.core.utils import cache_with_pickle
 
 pandarallel.initialize(verbose=1)
 
-from rdagent.app.qlib_rd_loop.conf import FactorBasePropSetting
+from rdagent.app.qlib_rd_loop.conf import FactorBasePropSetting, FactorTwBasePropSetting
 from rdagent.components.runner import CachedRunner
 from rdagent.core.exception import FactorEmptyError
 from rdagent.log import rdagent_logger as logger
@@ -31,6 +32,9 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
     - `data.py` + Adaptor to Factor implementation
     - results in `mlflow`
     """
+
+    prop_setting_cls: type[FactorBasePropSetting] = FactorBasePropSetting
+    """Source of train/valid/test dates passed into qrun. Subclasses override per-region."""
 
     def calculate_information_coefficient(
         self, concat_feature: pd.DataFrame, SOTA_feature_column_size: int, new_feature_columns_size: int
@@ -70,7 +74,7 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
             logger.info(f"Baseline experiment execution ...")
             exp.based_experiments[-1] = self.develop(exp.based_experiments[-1])
 
-        fbps = FactorBasePropSetting()
+        fbps = self.prop_setting_cls()
         env_to_use = {
             "PYTHONPATH": "./",
             "train_start": fbps.train_start,
@@ -80,6 +84,7 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
             "test_start": fbps.test_start,
             "feature_names": str(list(exp.base_features.keys())),
             "feature_expressions": str(list(exp.base_features.values())),
+            "dataset_name": os.environ.get("QLIB_DATASET_NAME", "tw_data"),
         }
         if fbps.test_end is not None:
             env_to_use.update({"test_end": fbps.test_end})
@@ -200,3 +205,10 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
         exp.stdout = stdout
 
         return exp
+
+
+class QlibTwFactorRunner(QlibFactorRunner):
+    """Taiwan variant — feeds qrun the TW dates from FactorTwBasePropSetting
+    (default 2022-01-01..2024-12-27) instead of the CN window."""
+
+    prop_setting_cls = FactorTwBasePropSetting

@@ -1,5 +1,5 @@
 qlib_init:
-    provider_uri: "~/.qlib/qlib_data/tw_data"
+    provider_uri: "~/.qlib/qlib_data/{{ dataset_name | default('tw_data', true) }}"
     region: cn
 
 market: &market all

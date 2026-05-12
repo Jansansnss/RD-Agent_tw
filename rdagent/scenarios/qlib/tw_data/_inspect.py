@@ -4,11 +4,17 @@ from pathlib import Path
 
 import pandas as pd
 
+try:
+    from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _paths import DATA_DIR
+
 pd.set_option("display.max_columns", 12)
 pd.set_option("display.width", 200)
 pd.set_option("display.float_format", lambda x: f"{x:,.2f}")
 
-path = Path(sys.argv[1] if len(sys.argv) > 1 else "tw_daily_smoke.h5")
+path = Path(sys.argv[1] if len(sys.argv) > 1 else str(DATA_DIR / "tw_daily_smoke.h5"))
 df = pd.read_hdf(path)
 
 for code in df.index.get_level_values("instrument").unique()[:1]:
