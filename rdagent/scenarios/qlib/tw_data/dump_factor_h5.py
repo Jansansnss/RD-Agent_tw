@@ -27,7 +27,28 @@ from pathlib import Path
 
 from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
 
-FIELDS = ["$open", "$close", "$high", "$low", "$volume", "$factor"]
+FIELDS = [
+    # Price / volume (Alpha158 base)
+    "$open", "$close", "$high", "$low", "$volume", "$factor",
+    "$vwap", "$offset",
+    # Valuation
+    "$div_yield", "$pe_ratio", "$pb_ratio",
+    # Institutional net flows (三大法人 — TWSE T86)
+    "$foreign_net", "$trust_net", "$dealer_net",
+    "$dealer_self_net", "$dealer_hedge_net",
+    "$inst_total_net", "$total_inst_net",
+    # Margin / 融資
+    "$margin_buy", "$margin_sell", "$margin_redeem",
+    "$margin_balance", "$margin_prev_balance", "$margin_next_limit",
+    # Short / 融券
+    "$short_buy", "$short_sell", "$short_redeem",
+    "$short_balance", "$short_prev_balance", "$short_next_limit",
+    "$short_margin_ratio",
+    # Foreign-holdings ratios
+    "$issued_shares",
+    "$foreign_remaining", "$foreign_held",
+    "$foreign_remaining_pct", "$foreign_held_pct", "$foreign_limit_pct",
+]
 
 
 def dump(
