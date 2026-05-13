@@ -1,0 +1,24 @@
+# Force LF line endings everywhere. The index already stores LF; Windows
+# editors had been adding CRLF on checkout, generating noisy diffs on every
+# `git status` run from this WSL setup.
+* text=auto eol=lf
+
+# Belt-and-suspenders binary tags (text=auto already auto-detects, but being
+# explicit keeps git from ever guessing wrong on these).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.h5 binary
+*.bin binary
+*.parquet binary
+*.pickle binary
+*.pkl binary
+*.so binary
+*.dll binary
+*.dylib binary
