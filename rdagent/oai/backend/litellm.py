@@ -157,6 +157,7 @@ class LiteLLMAPIBackend(APIBackend):
             messages=messages,
             stream=LITELLM_SETTINGS.chat_stream,
             max_retries=0,
+            timeout=LITELLM_SETTINGS.chat_timeout,
             **complete_kwargs,
             **kwargs,
         )

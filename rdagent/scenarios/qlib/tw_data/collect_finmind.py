@@ -921,34 +921,93 @@ def download_dividend_result(client, codes, start, end, output_dir):
     print(f"  Saved dividend_result.csv  ({len(df):,} rows)")
 
 
-# Trading daily report (per-stock cumulative broker aggregation) — special
-# endpoint (not /api/v4/data). One call per stock covering the full range.
-def download_trading_daily_report_secid_agg(client, codes, start, end, output_dir):
-    if not codes:
-        print("  Skipping trading_daily_report_secid_agg: no codes available.")
-        return
-    parts = output_dir / "_trading_daily_report_secid_agg_parts"
-    parts.mkdir(parents=True, exist_ok=True)
-    label = "分點累積 (TradingDailyReportSecIdAgg)"
-    endpoint = "https://api.finmindtrade.com/api/v4/taiwan_stock_trading_daily_report_secid_agg"
-    pending = [c for c in codes if not (parts / f"{c}.csv").exists()]
-    print(
-        f"Downloading {label} for {len(codes)} stocks "
-        f"({len(codes) - len(pending)} cached, {len(pending)} pending) ..."
-    )
-    if pending:
-        with _make_progress() as progress:
-            task = progress.add_task(label, total=len(pending), postfix="")
-            for code in pending:
-                rows = client.get(None, endpoint=endpoint, data_id=code,
-                                   start_date=start, end_date=end)
-                df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                df.to_csv(parts / f"{code}.csv", index=False)
-                time.sleep(client.sleep)
-                progress.update(task, advance=1, postfix=code)
+# Trading daily report (per-(broker, stock) daily flow) — special endpoint
+# (not /api/v4/data). The endpoint REQUIRES BOTH `securities_trader_id` AND
+# `data_id` per call — passing only one returns HTTP 400. So one call per
+# (broker, stock) pair, full date range per call.
+#
+# Free-tier quota is 6000 calls/day → ~2967 stocks fits in one day per broker.
+# Cache is namespaced by broker so adding a second broker tomorrow is purely
+# additive (no re-fetching for already-cached brokers).
+#
+# NOTE: an older, broken version of this function lives in
+# `_trading_daily_report_secid_agg_parts/` as 1-byte placeholders from a
+# buggy call that passed only `data_id`. Those files are orphaned and safe to
+# delete (`rm -rf data/tw_finmind_full/_trading_daily_report_secid_agg_parts`).
+def download_broker_secid_agg(client, brokers, codes, start, end, output_dir):
+    """Download (broker_id, stock_id, date) → buy_volume, sell_volume, prices.
 
-    frames = [_read_part(parts / f"{c}.csv") for c in codes]
-    frames = [f for f in frames if not f.empty]
+    Args:
+        brokers: list of FinMind securities_trader_id strings (e.g. ["1440"]
+                 for Merrill Lynch Taipei).
+        codes:   stock universe (4-digit TWSE codes). If None/empty, skip.
+    """
+    if not brokers:
+        print("  Skipping broker_secid_agg: no brokers specified (use --brokers).")
+        return
+    if not codes:
+        print("  Skipping broker_secid_agg: no stock codes available.")
+        return
+
+    label = "分點 (TradingDailyReportSecIdAgg)"
+    endpoint = "https://api.finmindtrade.com/api/v4/taiwan_stock_trading_daily_report_secid_agg"
+    parts_root = output_dir / "_broker_secid_agg_parts"
+
+    total_pairs = len(brokers) * len(codes)
+    print(
+        f"Downloading {label} for {len(brokers)} broker(s) × {len(codes)} stocks "
+        f"= {total_pairs:,} (broker, stock) pairs ..."
+    )
+
+    for broker_id in brokers:
+        broker_dir = parts_root / str(broker_id)
+        broker_dir.mkdir(parents=True, exist_ok=True)
+        # "Cached" means file exists AND has >0 bytes — empty placeholders from
+        # past failures don't count, so a fix-and-resume works automatically.
+        pending = [
+            c for c in codes
+            if not ((broker_dir / f"{c}.csv").exists()
+                    and (broker_dir / f"{c}.csv").stat().st_size > 0)
+        ]
+        cached = len(codes) - len(pending)
+        print(f"  broker {broker_id}: {cached} cached, {len(pending)} pending")
+        if not pending:
+            continue
+        with _make_progress() as progress:
+            task = progress.add_task(
+                f"{label} broker={broker_id}", total=len(pending), postfix=""
+            )
+            for code in pending:
+                rows = client.get(
+                    None,
+                    endpoint=endpoint,
+                    securities_trader_id=str(broker_id),
+                    data_id=code,
+                    start_date=start,
+                    end_date=end,
+                )
+                df = pd.DataFrame(rows) if rows else pd.DataFrame()
+                # Only write if non-empty — otherwise a no-rows response would
+                # become a "cached" zero-row file and we'd never retry it.
+                if not df.empty:
+                    df.to_csv(broker_dir / f"{code}.csv", index=False)
+                else:
+                    # Mark as attempted with a 0-byte sentinel; future runs
+                    # treat 0-byte files as "not cached" (see pending check)
+                    # so this is a noop placeholder — still useful for visual
+                    # progress tracking on resume.
+                    (broker_dir / f"{code}.csv").touch()
+                time.sleep(client.sleep)
+                progress.update(task, advance=1, postfix=f"{broker_id}/{code}")
+
+    # Merge: walk every (broker, stock) part across all configured brokers.
+    frames = []
+    for broker_id in brokers:
+        broker_dir = parts_root / str(broker_id)
+        for code in codes:
+            f = _read_part(broker_dir / f"{code}.csv")
+            if not f.empty:
+                frames.append(f)
     if not frames:
         print(f"  No {label} data retrieved.")
         return
@@ -958,8 +1017,12 @@ def download_trading_daily_report_secid_agg(client, codes, start, end, output_di
     df["instrument"] = df["instrument"].astype(str).str.zfill(4)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"])
-    df.to_csv(output_dir / "trading_daily_report_secid_agg.csv", index=False)
-    print(f"  Saved trading_daily_report_secid_agg.csv  ({len(df):,} rows)")
+    df.to_csv(output_dir / "broker_secid_agg.csv", index=False)
+    print(
+        f"  Saved broker_secid_agg.csv  ({len(df):,} rows, "
+        f"{df['securities_trader_id'].nunique()} broker(s), "
+        f"{df['instrument'].nunique()} stocks)"
+    )
 
 
 # ===========================================================================
@@ -1307,7 +1370,20 @@ def main() -> None:
                               "gov_bank, market_value_weight).")
     parser.add_argument("--skip_dividend_result", action="store_true")
     parser.add_argument("--skip_secid_agg", action="store_true",
-                         help="Skip TaiwanStockTradingDailyReportSecIdAgg (per-stock cumulative broker).")
+                         help="Skip TaiwanStockTradingDailyReportSecIdAgg (per-(broker, stock) daily flow).")
+    parser.add_argument("--brokers", default="1440",
+                         help=(
+                             "Comma-separated FinMind securities_trader_id list "
+                             "for the broker_secid_agg dataset. Default '1440' "
+                             "= Merrill Lynch Taipei. Pass e.g. '1440,1480' to "
+                             "add JPMorgan. Look up codes in trader_info.csv."
+                         ))
+    parser.add_argument("--brokers_file", default=None,
+                         help=(
+                             "Path to a watchlist file (one broker_id per non-"
+                             "comment line; '#' starts a comment). If set, "
+                             "overrides --brokers. See data/broker_watchlist.txt."
+                         ))
     parser.add_argument("--skip_market_wide", action="store_true",
                          help="Skip total_margin, total_institutional, business_indicator, "
                               "total_exchange_margin.")
@@ -1397,7 +1473,16 @@ def main() -> None:
     if not args.skip_dividend_result:
         download_dividend_result(client, sparse_codes, args.start, args.end, out)
     if not args.skip_secid_agg:
-        download_trading_daily_report_secid_agg(client, sparse_codes, args.start, args.end, out)
+        if args.brokers_file:
+            brokers = []
+            for raw in Path(args.brokers_file).read_text(encoding="utf-8").splitlines():
+                line = raw.split("#", 1)[0].strip()
+                if line:
+                    brokers.append(line)
+            print(f"Loaded {len(brokers)} broker ids from {args.brokers_file}")
+        else:
+            brokers = [b.strip() for b in args.brokers.split(",") if b.strip()]
+        download_broker_secid_agg(client, brokers, sparse_codes, args.start, args.end, out)
 
     # ---------- Sponsor expansion: market-wide aggregates ----------
     if not args.skip_market_wide:

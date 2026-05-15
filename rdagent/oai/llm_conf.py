@@ -69,6 +69,14 @@ class LLMSettings(ExtendedBaseSettings):
     chat_max_tokens: int | None = None
     chat_temperature: float = 0.5
     chat_stream: bool = True
+    chat_timeout: int | None = 600
+    """Per-request timeout in seconds for the chat completion call. Guards
+    against httpcore deadlocks in the streaming + connection-pool-close
+    path: when the LLM server closes the connection mid-stream, httpx's
+    pool cleanup can deadlock on an internal Lock with no recovery. A
+    finite timeout makes the request raise instead of stalling forever
+    (the retry loop in _try_create_chat_completion_or_embedding then
+    transparently retries up to LLM_SETTINGS.max_retry times)."""
     chat_seed: int | None = None
     chat_frequency_penalty: float = 0.0
     chat_presence_penalty: float = 0.0

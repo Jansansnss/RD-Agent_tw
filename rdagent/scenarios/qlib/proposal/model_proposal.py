@@ -4,7 +4,10 @@ from typing import List, Tuple
 from rdagent.components.coder.model_coder.model import ModelExperiment, ModelTask
 from rdagent.components.proposal import ModelHypothesis2Experiment, ModelHypothesisGen
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
-from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
+from rdagent.scenarios.qlib.experiment.model_experiment import (
+    QlibModelExperiment,
+    QlibTwModelExperiment,
+)
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 from rdagent.utils.agent.tpl import T
 
@@ -71,6 +74,10 @@ class QlibModelHypothesisGen(ModelHypothesisGen):
 
 
 class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
+    experiment_cls: type[QlibModelExperiment] = QlibModelExperiment
+    """Experiment class to instantiate. Subclasses override per-region so the
+    TW loop materializes its workspace from model_template_tw/ instead of CN."""
+
     def prepare_context(self, hypothesis: Hypothesis, trace: Trace) -> Tuple[dict, bool]:
         if isinstance(trace.scen, QlibQuantScenario):
             scenario = trace.scen.get_scenario_all_desc(action="model")
@@ -154,6 +161,14 @@ class QlibModelHypothesis2Experiment(ModelHypothesis2Experiment):
                     model_type=model_type,
                 )
             )
-        exp = QlibModelExperiment(tasks, hypothesis=hypothesis)
+        exp = self.experiment_cls(tasks, hypothesis=hypothesis)
         exp.based_experiments = [t[0] for t in trace.hist if t[1] and isinstance(t[0], ModelExperiment)]
         return exp
+
+
+class QlibTwModelHypothesis2Experiment(QlibModelHypothesis2Experiment):
+    """Taiwan variant — wraps tasks in QlibTwModelExperiment so the workspace is
+    materialized from model_template_tw/ (provider_uri tw_data, market all,
+    TW costs and date defaults)."""
+
+    experiment_cls = QlibTwModelExperiment

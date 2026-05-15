@@ -1,7 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
 
-from rdagent.app.qlib_rd_loop.conf import MODEL_PROP_SETTING
+from rdagent.app.qlib_rd_loop.conf import MODEL_PROP_SETTING, MODEL_TW_PROP_SETTING
 from rdagent.components.coder.model_coder.conf import get_model_env
 from rdagent.components.coder.model_coder.model import (
     ModelExperiment,
@@ -19,6 +19,21 @@ class QlibModelExperiment(ModelExperiment[ModelTask, QlibFBWorkspace, ModelFBWor
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.experiment_workspace = QlibFBWorkspace(template_folder_path=Path(__file__).parent / "model_template")
+        self.stdout = ""
+        self.base_features: dict[str, str] = {}
+
+
+class QlibTwModelExperiment(QlibModelExperiment):
+    """Taiwan-market variant — binds the workspace to model_template_tw/ so qrun
+    reads the TW provider_uri, universe, costs and date defaults."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        # Skip QlibModelExperiment.__init__ (binds to CN model_template/); call
+        # ModelExperiment directly, then swap to the TW workspace.
+        ModelExperiment.__init__(self, *args, **kwargs)
+        self.experiment_workspace = QlibFBWorkspace(
+            template_folder_path=Path(__file__).parent / "model_template_tw"
+        )
         self.stdout = ""
         self.base_features: dict[str, str] = {}
 
@@ -91,3 +106,22 @@ The simulator user can use to test your model:
         model_env = get_model_env()
         stdout = get_runtime_environment_by_env(env=model_env)
         return stdout
+
+
+class QlibTwModelScenario(QlibModelScenario):
+    """Taiwan-market scenario for the model R&D loop. Same coder/proposal as CN,
+    but the experiment-setting prompt is rendered with the TW date window so the
+    LLM proposes models tuned to 2021–2026 TWSE data."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._experiment_setting = deepcopy(
+            T(".prompts:qlib_model_experiment_setting").r(
+                train_start=MODEL_TW_PROP_SETTING.train_start,
+                train_end=MODEL_TW_PROP_SETTING.train_end,
+                valid_start=MODEL_TW_PROP_SETTING.valid_start,
+                valid_end=MODEL_TW_PROP_SETTING.valid_end,
+                test_start=MODEL_TW_PROP_SETTING.test_start,
+                test_end=MODEL_TW_PROP_SETTING.test_end,
+            )
+        )

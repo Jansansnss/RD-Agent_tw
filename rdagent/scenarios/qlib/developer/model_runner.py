@@ -1,6 +1,8 @@
+import os
+
 import pandas as pd
 
-from rdagent.app.qlib_rd_loop.conf import ModelBasePropSetting
+from rdagent.app.qlib_rd_loop.conf import ModelBasePropSetting, ModelTwBasePropSetting
 from rdagent.components.runner import CachedRunner
 from rdagent.core.conf import RD_AGENT_SETTINGS
 from rdagent.core.exception import ModelEmptyError
@@ -23,6 +25,9 @@ class QlibModelRunner(CachedRunner[QlibModelExperiment]):
     - pt_model_uri:  hard-code `model.py:Net` in the config
     - let LLM modify model.py
     """
+
+    prop_setting_cls: type[ModelBasePropSetting] = ModelBasePropSetting
+    """Source of train/valid/test dates passed into qrun. Subclasses override per-region."""
 
     @cache_with_pickle(CachedRunner.get_cache_key, CachedRunner.assign_cached_result)
     def develop(self, exp: QlibModelExperiment) -> QlibModelExperiment:
@@ -59,7 +64,7 @@ class QlibModelRunner(CachedRunner[QlibModelExperiment]):
         # to replace & inject code
         exp.experiment_workspace.inject_files(**{"model.py": exp.sub_workspace_list[0].file_dict["model.py"]})
 
-        mbps = ModelBasePropSetting()
+        mbps = self.prop_setting_cls()
         env_to_use = {
             "PYTHONPATH": "./",
             "train_start": mbps.train_start,
@@ -69,6 +74,7 @@ class QlibModelRunner(CachedRunner[QlibModelExperiment]):
             "test_start": mbps.test_start,
             "feature_names": str(list(exp.base_features.keys())),
             "feature_expressions": str(list(exp.base_features.values())),
+            "dataset_name": os.environ.get("QLIB_DATASET_NAME", "cn_data"),
         }
         if mbps.test_end is not None:
             env_to_use.update({"test_end": mbps.test_end})
@@ -119,3 +125,10 @@ class QlibModelRunner(CachedRunner[QlibModelExperiment]):
             raise ModelEmptyError(f"Failed to run {exp.sub_tasks[0].name} model, because {stdout}")
 
         return exp
+
+
+class QlibTwModelRunner(QlibModelRunner):
+    """Taiwan variant — feeds qrun the TW dates from ModelTwBasePropSetting
+    (default 2021-01-01..2026-05-09) instead of the CN window."""
+
+    prop_setting_cls = ModelTwBasePropSetting

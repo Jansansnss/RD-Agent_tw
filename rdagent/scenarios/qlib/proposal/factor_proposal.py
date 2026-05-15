@@ -1,13 +1,17 @@
 import json
+import os
+from pathlib import Path
 from typing import List, Tuple
 
 from rdagent.components.coder.factor_coder.factor import FactorExperiment, FactorTask
 from rdagent.components.proposal import FactorHypothesis2Experiment, FactorHypothesisGen
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
+from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
 from rdagent.scenarios.qlib.experiment.factor_tw_experiment import QlibTwFactorExperiment
 from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
+from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
 from rdagent.utils.agent.tpl import T
 
 QlibFactorHypothesis = Hypothesis
@@ -141,3 +145,42 @@ class QlibTwFactorHypothesis2Experiment(QlibFactorHypothesis2Experiment):
     is materialized from factor_template_tw/ (provider_uri tw_data, market all)."""
 
     experiment_cls = QlibTwFactorExperiment
+
+
+_TW_IDEAS_DEFAULT_PATH = DATA_DIR / "factor_ideas.md"
+
+
+def _load_tw_factor_ideas() -> str:
+    path = Path(os.environ.get("FACTOR_TW_IDEAS_PATH", str(_TW_IDEAS_DEFAULT_PATH)))
+    if not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError as e:
+        logger.warning(f"Could not read factor-idea seed file {path}: {e}")
+        return ""
+    if not text:
+        return ""
+    return text
+
+
+class QlibTwFactorHypothesisGen(QlibFactorHypothesisGen):
+    """Taiwan variant — appends user-curated factor ideas (from a plain-text
+    seed file) to the hypothesis specification on every loop iteration.
+
+    The LLM sees these alongside the shared `factor_hypothesis_specification`
+    block, with an explicit instruction to draw from the list when proposing
+    new factors. Editing the seed file is enough — no code change needed to
+    redirect what the loop tries next.
+    """
+
+    def prepare_context(self, trace: Trace) -> Tuple[dict, bool]:
+        context_dict, ok = super().prepare_context(trace)
+        ideas = _load_tw_factor_ideas()
+        if ideas:
+            context_dict["hypothesis_specification"] = (
+                context_dict["hypothesis_specification"]
+                + "\n\n**User-curated factor ideas (high priority — draw from this list when proposing new factors):**\n"
+                + ideas
+            )
+        return context_dict, ok
