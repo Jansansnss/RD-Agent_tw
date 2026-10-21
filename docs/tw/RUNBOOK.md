@@ -20,15 +20,49 @@ Everything runs on the user's machine in **WSL2**: `cd /mnt/g/Github/RD-Agent`,
 ```bash
 bash rdagent/scenarios/qlib/tw_data/daily_update.sh
 # detached: tmux new -s tw_daily -d "bash /mnt/g/Github/RD-Agent/rdagent/scenarios/qlib/tw_data/daily_update.sh"
+# extra collector flags: COLLECT_ARGS="--sparse_max_age_days 20" bash .../daily_update.sh
 ```
 
 Steps it chains (runnable individually, all `python -u -m rdagent.scenarios.qlib.tw_data.<mod>`):
-`collect_finmind` (skip-flags for market-wide/macro/static/derivatives — weekly cadence is fine
-for those) → `clean_csvs` → `dump_to_bin --input_dir data/tw_finmind_full_clean --out_dir
-~/.qlib/qlib_data/tw_data` → `dump_factor_h5`.
+`collect_finmind` (skips market-wide/macro/static/derivatives — weekly cadence is fine for those
+— and the broker pull) → `clean_csvs` → `dump_to_bin --input_dir data/tw_finmind_full_clean
+--out_dir ~/.qlib/qlib_data/tw_data` → `dump_factor_h5`.
+
+Collector cache rules (why: DECISIONS D13/D14):
+- A startup preflight aborts on a rejected token or lost Backer/Sponsor tier → fix `.env` (D3).
+- Failed requests, and empty answers for the last 7 days (not published yet), are never cached;
+  re-running retries them.
+- OHLCV self-heals FinMind's back-adjustment: each run re-checks the last verified day
+  (`_ohlcv_parts/_verified_through.txt`) and re-fetches full history for stocks whose adjusted
+  close moved (`_ohlcv_restated/`). After a crashed update or a long gap, use `--refresh_ohlcv`
+  (~4.4K calls).
+- Per-stock fundamentals (`month_revenue`, `dividend*`, `fs_*`) never refresh by themselves: once
+  a month after the 10th (revenue posting deadline) run with
+  `COLLECT_ARGS="--sparse_max_age_days 20"` (~15K calls, resumable).
+
+**Catch-up after a long gap** — two phases so the bin is usable before the slow fundamentals:
+
+```bash
+collect() { python -u -m rdagent.scenarios.qlib.tw_data.collect_finmind --start 2010-01-01 --skip_secid_agg "$@"; }
+# 1) bin inputs + everything cheap (~6.5K calls, ~2 h), then rebuild bin + H5
+collect --refresh_ohlcv --skip_month_revenue --skip_dividend --skip_dividend_result \
+    --skip_fs_income --skip_fs_balance --skip_fs_cashflow
+python -u -m rdagent.scenarios.qlib.tw_data.clean_csvs
+python -u -m rdagent.scenarios.qlib.tw_data.dump_to_bin --input_dir data/tw_finmind_full_clean --out_dir ~/.qlib/qlib_data/tw_data
+python -u -m rdagent.scenarios.qlib.tw_data.dump_factor_h5
+# 2) fundamentals (~15K calls, ~3 h), then re-clean
+collect --sparse_max_age_days 1 --skip_ohlcv --skip_institutional --skip_margin --skip_valuation \
+    --skip_foreign_holdings --skip_aggregates --skip_market_wide --skip_macro --skip_static --skip_derivatives
+python -u -m rdagent.scenarios.qlib.tw_data.clean_csvs
+```
+
+Delete `data/tw_finmind_full/_ohlcv_parts.stale/` and `_ohlcv_restated.stale/` once phase 1 has
+produced a good bin.
 
 **Verify data**: `python -m rdagent.scenarios.qlib.tw_data._verify_bin` and `_inspect.py`.
-**Full re-collect from scratch**: `_run_full_collect.sh` in `tw_data/` (hours; FinMind quota).
+**Full FinMind re-collect from scratch**: move `data/tw_finmind_full/` aside and run the catch-up
+(many hours of quota). `tw_data/_run_full_collect.sh` is the legacy TWSE-direct `collect.py`
+pull, not FinMind.
 
 ## 2. Factor loop (main workhorse)
 

@@ -57,10 +57,15 @@ Usage:
     python collect_finmind.py --codes blue_chips --start 2018-01-01 \\
         --skip_ohlcv --skip_institutional --skip_margin \\
         --skip_valuation --skip_foreign_holdings
+
+    # Catch-up after a long gap: rebuild the adjusted-price cache and
+    # re-fetch fundamentals cached more than a day ago
+    python collect_finmind.py --start 2010-01-01 --refresh_ohlcv --sparse_max_age_days 1
 """
 
 import argparse
 import os
+import shutil
 import sys
 import time
 from datetime import date
@@ -103,6 +108,14 @@ USAGE_URL = "https://api.web.finmindtrade.com/v2/user_info"
 # Tune via --sleep CLI flag if you hit 402.
 DEFAULT_SLEEP = 0.2
 
+# An empty answer for a recent day usually means "not published yet" (FinMind
+# lags the close by hours, weekly datasets by days) rather than a holiday.
+# Such days are left uncached so the next run asks again.
+RECENT_EMPTY_RETRY_DAYS = 7
+
+# Known trading day for the startup token/tier probe.
+PREFLIGHT_DAY = "2024-01-02"
+
 
 def _load_token() -> str:
     load_dotenv()
@@ -136,13 +149,18 @@ class FinMindClient:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {token}"})
 
-    def get(self, dataset: Optional[str], retries: int = 3, endpoint: Optional[str] = None, **params) -> list[dict]:
-        """Fetch /data and return the ``data`` array. ``[]`` on failure.
+    def get(
+        self, dataset: Optional[str], retries: int = 3, endpoint: Optional[str] = None, **params
+    ) -> Optional[list[dict]]:
+        """Fetch /data and return the ``data`` array (``[]`` = no rows).
+
+        Returns ``None`` when the request failed (unknown API status such as a
+        rejected token, or network retries exhausted). Callers must not cache
+        ``None`` as an empty part: cached parts are never re-fetched, so the
+        stock/date would stay a hole forever.
 
         402 (quota exhausted) is retried forever with exponential backoff —
-        we never give up on rate-limit, otherwise an empty-list return would
-        get cached as a "no data" part file and that stock/date would never
-        be re-fetched.
+        we never give up on rate-limit, for the same reason.
 
         ``endpoint`` overrides the URL — used for FinMind's special endpoints
         (TaiwanStockTradingDailyReport, TaiwanStockTradingDailyReportSecIdAgg)
@@ -175,7 +193,7 @@ class FinMindClient:
                         continue  # don't increment `attempt` — keep trying
                     # Unknown non-200 status: log and bail.
                     print(f"  WARN {dataset} {params}: {payload}", file=sys.stderr)
-                    return []
+                    return None
                 if resp.status_code == 402:
                     wait = min(60 * (2 ** rl_attempt), 1800)
                     rl_attempt += 1
@@ -189,7 +207,7 @@ class FinMindClient:
                 print(f"  WARN {dataset} network attempt {attempt}: {e}", file=sys.stderr)
             attempt += 1
             time.sleep(2 ** attempt)
-        return []
+        return None
 
     def usage(self) -> tuple[int, int]:
         """Return (used, limit) request count for the current token."""
@@ -242,6 +260,10 @@ def _ensure_parts_by_date(
     Returns the full DatetimeIndex of business days covered. No frames are
     materialized — pair with ``_iter_parts_by_date`` for streaming consumers
     or ``_download_by_date`` for the materialized-list workflow.
+
+    Days are fetched newest-first (``download_ohlcv`` relies on this). Failed
+    requests, and empty answers for the last ``RECENT_EMPTY_RETRY_DAYS``
+    days, are not cached so the next run retries them.
     """
     parts_dir.mkdir(parents=True, exist_ok=True)
     dates = pd.date_range(start, end, freq="B")
@@ -251,15 +273,23 @@ def _ensure_parts_by_date(
         f"({len(dates) - len(pending)} cached, {len(pending)} pending) ..."
     )
     if pending:
+        recent = pd.Timestamp(date.today()) - pd.Timedelta(days=RECENT_EMPTY_RETRY_DAYS)
+        failed = deferred = 0
         with _make_progress() as progress:
             task = progress.add_task(name, total=len(pending), postfix="")
-            for d in pending:
+            for d in reversed(pending):
                 ymd = d.strftime("%Y-%m-%d")
                 rows = client.get(dataset, start_date=ymd, end_date=ymd, **(extra_params or {}))
-                df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                df.to_csv(parts_dir / f"{d.strftime('%Y%m%d')}.csv", index=False)
+                if rows is None:
+                    failed += 1
+                elif rows or d < recent:
+                    pd.DataFrame(rows).to_csv(parts_dir / f"{d.strftime('%Y%m%d')}.csv", index=False)
+                else:
+                    deferred += 1
                 time.sleep(client.sleep)
                 progress.update(task, advance=1, postfix=ymd)
+        if failed or deferred:
+            print(f"  {name}: {failed} failed + {deferred} recent empty day(s) left uncached; re-run to retry.")
     return dates
 
 
@@ -294,24 +324,41 @@ def _download_per_stock(
     start: str,
     end: str,
     parts_dir: Path,
+    max_age_days: Optional[float] = None,
 ) -> list[pd.DataFrame]:
-    """Per-stock-per-range mode. One request covers full date range per stock."""
+    """Per-stock-per-range mode. One request covers full date range per stock.
+
+    Cached parts are reused forever unless ``max_age_days`` is set; then parts
+    older than that are re-fetched (new revenue months, restated statements).
+    It is mtime-based, so an interrupted refresh resumes where it stopped.
+    """
     parts_dir.mkdir(parents=True, exist_ok=True)
     codes = list(codes)
-    pending = [c for c in codes if not (parts_dir / f"{c}.csv").exists()]
+    stale_before = None if max_age_days is None else time.time() - max_age_days * 86400
+
+    def _cached(code: str) -> bool:
+        p = parts_dir / f"{code}.csv"
+        return p.exists() and (stale_before is None or p.stat().st_mtime >= stale_before)
+
+    pending = [c for c in codes if not _cached(c)]
     print(
         f"Downloading {name} for {len(codes)} stocks "
         f"({len(codes) - len(pending)} cached, {len(pending)} pending) ..."
     )
     if pending:
+        failed = 0
         with _make_progress() as progress:
             task = progress.add_task(name, total=len(pending), postfix="")
             for code in pending:
                 rows = client.get(dataset, data_id=code, start_date=start, end_date=end)
-                df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                df.to_csv(parts_dir / f"{code}.csv", index=False)
+                if rows is None:
+                    failed += 1  # keep any older part; retried next run
+                else:
+                    pd.DataFrame(rows).to_csv(parts_dir / f"{code}.csv", index=False)
                 time.sleep(client.sleep)
                 progress.update(task, advance=1, postfix=code)
+        if failed:
+            print(f"  {name}: {failed} request(s) failed; re-run to retry.")
 
     return [_read_part(parts_dir / f"{c}.csv") for c in codes]
 
@@ -339,8 +386,21 @@ def _concat_clean(frames: list[pd.DataFrame], rename: dict, keep_cols: list[str]
 
 
 # ---------------------------------------------------------------------------
-# 1. OHLCV — TaiwanStockPriceAdj (already split-adjusted)
+# 1. OHLCV — TaiwanStockPriceAdj (back-adjusted as of fetch time)
 # ---------------------------------------------------------------------------
+# FinMind re-anchors the adjusted series at every ex-right/ex-dividend event:
+# all history before the ex-date is rescaled (checked 2026-10-22: closes cached
+# in May equal the raw close on their newest day and sit 1-9% below raw a year
+# earlier). Per-day parts cached by earlier runs therefore go stale for every
+# stock with an event since; appending fresh days to them would put a fake
+# dividend-sized "return" at the seam.
+#
+# So each by-date run re-fetches one anchor day: the newest day the previous
+# run verified (OHLCV_VERIFIED). Stocks whose anchor close moved, plus stocks
+# that skipped the anchor (suspended) and came back, get their full history
+# re-fetched per stock into ``_ohlcv_restated/<stock>.csv``, which overrides
+# the per-day parts up to its last date. Invariant after every successful
+# run: all cached rows are adjusted as of that run.
 
 OHLCV_RENAME = {
     "stock_id": "instrument",
@@ -353,27 +413,159 @@ OHLCV_RENAME = {
 }
 OHLCV_KEEP = ["$open", "$high", "$low", "$close", "$volume", "$amount", "$factor"]
 OHLCV_NUM = ["$open", "$high", "$low", "$close", "$volume", "$amount"]
+OHLCV_VERIFIED = "_verified_through.txt"  # in _ohlcv_parts/
+OHLCV_RESTATE_RTOL = 1e-5  # closes are 2-dp; a real re-anchor moves them far more
 
 
-def download_ohlcv(client, codes, start, end, output_dir):
+def _move_aside(path: Path) -> None:
+    """Rename a cache dir to ``<name>.stale``, replacing an older one."""
+    if not path.exists():
+        return
+    stale = path.with_name(path.name + ".stale")
+    if stale.exists():
+        shutil.rmtree(stale)
+    path.rename(stale)
+    print(f"  Moved {path.name} aside to {stale.name} (delete it once this run succeeds)")
+
+
+def _ohlcv_anchor(parts_dir: Path) -> Optional[str]:
+    """Newest day the previous run verified. Caches predating OHLCV_VERIFIED
+    fall back to their newest non-empty part."""
+    state = parts_dir / OHLCV_VERIFIED
+    if state.exists():
+        return state.read_text().strip()
+    for p in sorted(parts_dir.glob("[0-9]" * 8 + ".csv"), reverse=True):
+        if p.stat().st_size > 1:
+            day = pd.Timestamp(p.stem).strftime("%Y-%m-%d")
+            print(
+                f"  WARNING: no {OHLCV_VERIFIED}; assuming the OHLCV cache is consistent through "
+                f"{day}. If an earlier run died mid-update, re-run with --refresh_ohlcv.",
+                file=sys.stderr,
+            )
+            return day
+    return None
+
+
+def _apply_restated(raw: pd.DataFrame, restated: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Swap in each restated stock's history for its per-day rows up to the
+    history's last date. Restated rows past the newest per-day part are
+    dropped so a day never shows up for only a handful of stocks."""
+    if not restated:
+        return raw
+    rs = pd.concat(restated.values(), ignore_index=True)
+    rs = rs[rs["date"] <= raw["date"].max()]
+    asof = rs.groupby("stock_id")["date"].max()
+    cutoff = raw["stock_id"].map(asof)
+    keep = cutoff.isna() | (raw["date"] > cutoff.fillna(""))
+    return pd.concat([raw[keep], rs], ignore_index=True)
+
+
+def _readjusted_stocks(client, dataset: str, eff: pd.DataFrame, anchor: str) -> set[str]:
+    """Stocks whose cached history no longer matches FinMind's current adjustment."""
+    rows = client.get(dataset, start_date=anchor, end_date=anchor)
+    if not rows:
+        raise RuntimeError(
+            f"Could not re-fetch OHLCV anchor day {anchor}; refusing to merge adjusted "
+            "prices that may be stale. Re-run later."
+        )
+    fresh = pd.DataFrame(rows).drop_duplicates("stock_id", keep="last").set_index("stock_id")["close"]
+    cached = eff[eff["date"] == anchor].drop_duplicates("stock_id", keep="last").set_index("stock_id")["close"]
+    both = fresh.index.intersection(cached.index)
+    ratio = pd.to_numeric(fresh[both], errors="coerce") / pd.to_numeric(cached[both], errors="coerce")
+    moved = set(ratio.index[(ratio - 1).abs() > OHLCV_RESTATE_RTOL])
+    unseen = set(fresh.index) - set(cached.index)
+    # Suspended on the anchor day: its close can't be compared, and a capital
+    # reduction (a common reason for the halt) rescales the history.
+    resumed = (
+        set(eff.loc[eff["date"] > anchor, "stock_id"]) & set(eff.loc[eff["date"] < anchor, "stock_id"])
+    ) - set(cached.index)
+    print(
+        f"  Anchor {anchor}: {len(moved)} re-adjusted, {len(unseen)} missing from cache, "
+        f"{len(resumed)} back from a gap -> re-fetching {len(moved | unseen | resumed)} stock histories"
+    )
+    return moved | unseen | resumed
+
+
+def _restate(client, dataset, stock_ids, start, end, restated_dir: Path, restated: dict) -> None:
+    """Re-fetch full adjusted history per stock into ``restated_dir`` (and ``restated``)."""
+    restated_dir.mkdir(parents=True, exist_ok=True)
+    failed, empty = [], []
+    with _make_progress() as progress:
+        task = progress.add_task("OHLCV re-adjusted histories", total=len(stock_ids), postfix="")
+        for sid in sorted(stock_ids):
+            rows = client.get(dataset, data_id=sid, start_date=start, end_date=end)
+            if rows is None:
+                failed.append(sid)
+            elif not rows:
+                empty.append(sid)
+            else:
+                f = pd.DataFrame(rows)
+                f["stock_id"] = f["stock_id"].astype(str)
+                tmp = restated_dir / f"{sid}.csv.tmp"
+                f.to_csv(tmp, index=False)
+                os.replace(tmp, restated_dir / f"{sid}.csv")
+                restated[sid] = f
+            time.sleep(client.sleep)
+            progress.update(task, advance=1, postfix=sid)
+    if empty:
+        print(f"  WARNING: no per-stock history returned for {empty[:10]} (kept cached rows)", file=sys.stderr)
+    if failed:
+        raise RuntimeError(
+            f"Per-stock re-fetch failed for {len(failed)} re-adjusted stocks (e.g. {failed[:5]}); "
+            "re-run to retry — refusing to write a series with stale segments."
+        )
+
+
+def download_ohlcv(client, codes, start, end, output_dir, refresh=False):
+    name, dataset = "OHLCV (TaiwanStockPriceAdj)", "TaiwanStockPriceAdj"
     parts = output_dir / "_ohlcv_parts"
+    verified = None
     if codes is None:
-        frames = _download_by_date(
-            client, "OHLCV (TaiwanStockPriceAdj)", "TaiwanStockPriceAdj", start, end, parts
+        restated_dir = output_dir / "_ohlcv_restated"
+        if refresh:
+            _move_aside(parts)
+            _move_aside(restated_dir)
+        anchor = None if refresh else _ohlcv_anchor(parts)  # chosen before downloading
+        frames = [f for f in _download_by_date(client, name, dataset, start, end, parts) if not f.empty]
+        if not frames:
+            print("  No OHLCV data retrieved.")
+            return
+        raw = pd.concat(frames, ignore_index=True)
+        del frames
+        restated = (
+            {p.stem: _read_part(p) for p in sorted(restated_dir.glob("*.csv"))} if restated_dir.exists() else {}
         )
+        eff = _apply_restated(raw, restated)
+        verified = eff["date"].max()
+        if refresh:
+            # Newest-first download: the newest day was fetched before all the
+            # others, so re-checking it catches a re-anchor during this run.
+            anchor = verified
+        if anchor is not None:
+            if not (eff["date"] == anchor).any():
+                raise RuntimeError(
+                    f"OHLCV anchor day {anchor} is outside {start}..{end}; widen the range "
+                    "or pass --refresh_ohlcv."
+                )
+            affected = _readjusted_stocks(client, dataset, eff, anchor)
+            if affected:
+                _restate(client, dataset, affected, start, end, restated_dir, restated)
+                eff = _apply_restated(raw, restated)
+        del raw
+        frames = [eff]
     else:
-        frames = _download_per_stock(
-            client, "OHLCV (TaiwanStockPriceAdj)", "TaiwanStockPriceAdj", codes, start, end, parts
-        )
+        frames = _download_per_stock(client, name, dataset, codes, start, end, parts)
     df = _concat_clean(frames, OHLCV_RENAME, OHLCV_KEEP, OHLCV_NUM)
     if df.empty:
         print("  No OHLCV data retrieved.")
         return
-    # FinMind's TaiwanStockPriceAdj is already adjusted; treat as a single series.
+    # Adjusted prices are the single series qlib sees; no separate factor.
     df["$factor"] = 1.0
     df = df[["date", "instrument"] + OHLCV_KEEP]
     df.to_csv(output_dir / "ohlcv.csv", index=False)
     print(f"  Saved ohlcv.csv  ({len(df):,} rows)")
+    if verified is not None:
+        (parts / OHLCV_VERIFIED).write_text(f"{verified}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -645,13 +837,13 @@ MONTH_REV_RENAME = {"stock_id": "instrument"}
 MONTH_REV_KEEP = ["revenue", "revenue_year", "revenue_month"]
 
 
-def download_month_revenue(client, codes, start, end, output_dir):
+def download_month_revenue(client, codes, start, end, output_dir, max_age_days=None):
     parts = output_dir / "_month_revenue_parts"
     name = "月營收 (TaiwanStockMonthRevenue)"
     dataset = "TaiwanStockMonthRevenue"
     # Sparse data — per-stock-per-range is far cheaper than iterating business days,
     # so we always go per-stock. Caller passes the universe via codes.
-    frames = _download_per_stock(client, name, dataset, codes, start, end, parts)
+    frames = _download_per_stock(client, name, dataset, codes, start, end, parts, max_age_days)
     df = _concat_clean(frames, MONTH_REV_RENAME, MONTH_REV_KEEP, MONTH_REV_KEEP)
     if df.empty:
         print("  No monthly revenue data retrieved.")
@@ -680,12 +872,12 @@ DIVIDEND_KEEP = [
 DIVIDEND_NUM = ["cash_div", "stock_div"]
 
 
-def download_dividend(client, codes, start, end, output_dir):
+def download_dividend(client, codes, start, end, output_dir, max_age_days=None):
     parts = output_dir / "_dividend_parts"
     name = "股利政策 (TaiwanStockDividend)"
     dataset = "TaiwanStockDividend"
     # Sparse — always per-stock.
-    frames = _download_per_stock(client, name, dataset, codes, start, end, parts)
+    frames = _download_per_stock(client, name, dataset, codes, start, end, parts, max_age_days)
     df = _concat_clean(frames, DIVIDEND_RENAME, DIVIDEND_KEEP, DIVIDEND_NUM)
     if df.empty:
         print("  No dividend data retrieved.")
@@ -698,10 +890,10 @@ def download_dividend(client, codes, start, end, output_dir):
 # 8-10. Financial Statements (long-format, kept as-is)
 # ---------------------------------------------------------------------------
 
-def _download_long_format_fs(client, codes, start, end, output_dir, dataset, filename, label):
+def _download_long_format_fs(client, codes, start, end, output_dir, dataset, filename, label, max_age_days=None):
     parts = output_dir / f"_{Path(filename).stem}_parts"
     # Quarterly reports — always per-stock to avoid wasted by-date calls.
-    frames = _download_per_stock(client, label, dataset, codes, start, end, parts)
+    frames = _download_per_stock(client, label, dataset, codes, start, end, parts, max_age_days)
     frames = [f for f in frames if not f.empty]
     if not frames:
         print(f"  No {label} data retrieved.")
@@ -719,30 +911,33 @@ def _download_long_format_fs(client, codes, start, end, output_dir, dataset, fil
     print(f"  Saved {filename}  ({len(raw):,} rows, {raw['type'].nunique()} unique types)")
 
 
-def download_fs_income(client, codes, start, end, output_dir):
+def download_fs_income(client, codes, start, end, output_dir, max_age_days=None):
     _download_long_format_fs(
         client, codes, start, end, output_dir,
         dataset="TaiwanStockFinancialStatements",
         filename="fs_income.csv",
         label="綜合損益表 (FinancialStatements)",
+        max_age_days=max_age_days,
     )
 
 
-def download_fs_balance(client, codes, start, end, output_dir):
+def download_fs_balance(client, codes, start, end, output_dir, max_age_days=None):
     _download_long_format_fs(
         client, codes, start, end, output_dir,
         dataset="TaiwanStockBalanceSheet",
         filename="fs_balance.csv",
         label="資產負債表 (BalanceSheet)",
+        max_age_days=max_age_days,
     )
 
 
-def download_fs_cashflow(client, codes, start, end, output_dir):
+def download_fs_cashflow(client, codes, start, end, output_dir, max_age_days=None):
     _download_long_format_fs(
         client, codes, start, end, output_dir,
         dataset="TaiwanStockCashFlowsStatement",
         filename="fs_cashflow.csv",
         label="現金流量表 (CashFlowsStatement)",
+        max_age_days=max_age_days,
     )
 
 
@@ -908,11 +1103,11 @@ DIVIDEND_RESULT_NUM = [
 ]
 
 
-def download_dividend_result(client, codes, start, end, output_dir):
+def download_dividend_result(client, codes, start, end, output_dir, max_age_days=None):
     parts = output_dir / "_dividend_result_parts"
     name = "除權息結果 (DividendResult)"
     dataset = "TaiwanStockDividendResult"
-    frames = _download_per_stock(client, name, dataset, codes, start, end, parts)
+    frames = _download_per_stock(client, name, dataset, codes, start, end, parts, max_age_days)
     df = _concat_clean(frames, DIVIDEND_RESULT_RENAME, DIVIDEND_RESULT_KEEP, DIVIDEND_RESULT_NUM)
     if df.empty:
         print(f"  No {name} data retrieved.")
@@ -1096,20 +1291,18 @@ def _download_macro_per_data_id(client, label, dataset, data_ids, start, end, ou
     parts = output_dir / f"_{Path(filename).stem}_parts"
     parts.mkdir(parents=True, exist_ok=True)
     safe = lambda s: s.replace(" ", "_").replace("/", "_")
-    pending = [d for d in data_ids if not (parts / f"{safe(d)}.csv").exists()]
-    print(
-        f"Downloading {label} for {len(data_ids)} data_ids "
-        f"({len(data_ids) - len(pending)} cached, {len(pending)} pending) ..."
-    )
-    if pending:
-        with _make_progress() as progress:
-            task = progress.add_task(label, total=len(pending), postfix="")
-            for did in pending:
-                rows = client.get(dataset, data_id=did, start_date=start, end_date=end)
-                df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                df.to_csv(parts / f"{safe(did)}.csv", index=False)
-                time.sleep(client.sleep)
-                progress.update(task, advance=1, postfix=did)
+    # One full-range request per id, so always re-fetch: skipping cached ids
+    # would freeze these series at the first pull. A failed request keeps the
+    # previous part.
+    print(f"Downloading {label} for {len(data_ids)} data_ids ...")
+    with _make_progress() as progress:
+        task = progress.add_task(label, total=len(data_ids), postfix="")
+        for did in data_ids:
+            rows = client.get(dataset, data_id=did, start_date=start, end_date=end)
+            if rows is not None:
+                pd.DataFrame(rows).to_csv(parts / f"{safe(did)}.csv", index=False)
+            time.sleep(client.sleep)
+            progress.update(task, advance=1, postfix=did)
 
     frames = [_read_part(parts / f"{safe(d)}.csv") for d in data_ids]
     frames = [f for f in frames if not f.empty]
@@ -1266,8 +1459,8 @@ def _download_per_stock_per_day(client, label, dataset, codes, start, end, outpu
             for code, d in pending:
                 ymd = d.strftime("%Y-%m-%d")
                 rows = client.get(dataset, data_id=code, start_date=ymd)
-                df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                df.to_csv(parts_root / code / f"{d.strftime('%Y%m%d')}.csv", index=False)
+                if rows is not None:  # failed requests stay pending
+                    pd.DataFrame(rows).to_csv(parts_root / code / f"{d.strftime('%Y%m%d')}.csv", index=False)
                 time.sleep(client.sleep)
                 progress.update(task, advance=1, postfix=f"{code} {ymd}")
 
@@ -1325,6 +1518,28 @@ def download_news(client, codes, start, end, output_dir):
 # ---------------------------------------------------------------------------
 
 DEFAULT_OUTPUT_DIR = DATA_DIR / "tw_finmind_full"
+
+
+def _preflight(client: FinMindClient, by_date: bool) -> None:
+    """Abort before touching any cache when the token is dead or under-tiered.
+
+    Failed requests are never cached, but the merge steps would still rewrite
+    every CSV from the old parts and the run would look like it succeeded.
+    """
+    try:
+        used, limit = client.usage()
+        print(f"FinMind quota: {used:,} / {limit:,} used\n")
+    except Exception as e:
+        print(f"Could not fetch quota ({e}); continuing.\n", file=sys.stderr)
+    probe = {"start_date": PREFLIGHT_DAY, "end_date": PREFLIGHT_DAY}
+    if not by_date:
+        probe["data_id"] = "2330"
+    if not client.get("TaiwanStockPriceAdj", **probe):
+        sys.exit(
+            "FinMind refused a TaiwanStockPriceAdj request: FINMIND_TOKEN_API_KEY in .env is "
+            "invalid/rotated, or the account is no longer Backer/Sponsor tier. Fix that before "
+            "collecting (docs/tw/TODO_GRAPH.md D3)."
+        )
 
 
 def main() -> None:
@@ -1395,6 +1610,16 @@ def main() -> None:
     parser.add_argument("--skip_derivatives", action="store_true",
                          help="Skip futures/options daily + institutional.")
 
+    # Cache refresh (see download_ohlcv / _download_per_stock)
+    parser.add_argument("--refresh_ohlcv", action="store_true",
+                         help="Move the OHLCV per-day cache aside and re-download the full range "
+                              "(by-date mode, ~1 call per business day). Use after a long gap or a "
+                              "crashed update; daily runs keep the cache consistent on their own.")
+    parser.add_argument("--sparse_max_age_days", type=float, default=None,
+                         help="Re-fetch per-stock fundamentals parts (month_revenue, dividend, "
+                              "dividend_result, fs_*) older than this many days. Default: never. "
+                              "~2.5K calls per dataset; resumable.")
+
     # Optional / very expensive: opt-in via --include_*. Default skipped.
     parser.add_argument("--include_kbar", action="store_true",
                          help="DOWNLOAD 1-min K-bars per (stock, day). Single-day-per-call: "
@@ -1409,11 +1634,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
 
     client = FinMindClient(_load_token(), sleep=args.sleep)
-    try:
-        used, limit = client.usage()
-        print(f"FinMind quota: {used:,} / {limit:,} used\n")
-    except Exception as e:
-        print(f"Could not fetch quota ({e}); continuing.\n", file=sys.stderr)
+    _preflight(client, by_date=not args.codes)
 
     if args.codes == "blue_chips":
         codes = BLUE_CHIPS
@@ -1437,14 +1658,17 @@ def main() -> None:
     ])
     if needs_universe:
         sparse_codes = get_finmind_stock_list(client)
+        if not sparse_codes:
+            sys.exit("Could not resolve the stock universe (TaiwanStockInfo returned nothing).")
         print(f"Resolved {len(sparse_codes)} TWSE codes for sparse / per-stock datasets")
     else:
         sparse_codes = codes  # may be None if everything that needs codes is skipped
     print()
+    max_age = args.sparse_max_age_days
 
     # ---------- Original 10 datasets ----------
     if not args.skip_ohlcv:
-        download_ohlcv(client, codes, args.start, args.end, out)
+        download_ohlcv(client, codes, args.start, args.end, out, refresh=args.refresh_ohlcv)
     if not args.skip_institutional:
         download_institutional(client, codes, args.start, args.end, out)
     if not args.skip_margin:
@@ -1454,15 +1678,15 @@ def main() -> None:
     if not args.skip_foreign_holdings:
         download_foreign_holdings(client, codes, args.start, args.end, out)
     if not args.skip_month_revenue:
-        download_month_revenue(client, sparse_codes, args.start, args.end, out)
+        download_month_revenue(client, sparse_codes, args.start, args.end, out, max_age)
     if not args.skip_dividend:
-        download_dividend(client, sparse_codes, args.start, args.end, out)
+        download_dividend(client, sparse_codes, args.start, args.end, out, max_age)
     if not args.skip_fs_income:
-        download_fs_income(client, sparse_codes, args.start, args.end, out)
+        download_fs_income(client, sparse_codes, args.start, args.end, out, max_age)
     if not args.skip_fs_balance:
-        download_fs_balance(client, sparse_codes, args.start, args.end, out)
+        download_fs_balance(client, sparse_codes, args.start, args.end, out, max_age)
     if not args.skip_fs_cashflow:
-        download_fs_cashflow(client, sparse_codes, args.start, args.end, out)
+        download_fs_cashflow(client, sparse_codes, args.start, args.end, out, max_age)
 
     # ---------- Sponsor expansion: 8 daily per-stock aggregates ----------
     if not args.skip_aggregates:
@@ -1471,7 +1695,7 @@ def main() -> None:
 
     # ---------- Sponsor expansion: per-stock fundamentals (sparse) ----------
     if not args.skip_dividend_result:
-        download_dividend_result(client, sparse_codes, args.start, args.end, out)
+        download_dividend_result(client, sparse_codes, args.start, args.end, out, max_age)
     if not args.skip_secid_agg:
         if args.brokers_file:
             brokers = []

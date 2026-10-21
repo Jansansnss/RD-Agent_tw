@@ -25,13 +25,15 @@ renumber.
 
 ## Main line
 
-### `[ ]` G0 · Preflight — PM + Scout (Haiku)
+### `[~]` G0 · Preflight — PM + Scout (Haiku)
 Checks: repo clean (`git status`) · `.env` present · data age (calendar tail vs today) ·
 `rdagent health_check` passes (Jans runs).
 Edges: all pass + data stale → **T0** · all pass + J1 → **T2** · health fail → **D0** · dirty
 repo → resolve/commit first (PM).
+- 2026-10-22: repo cleaned (July docs committed); data 5.5 months stale (calendar ends
+  2026-05-08); FinMind token rejected → T0 blocked on **D3**. health_check not run.
 
-### `[ ]` T0 · Data refresh — Jans (machine); Scribe monitors log
+### `[!]` T0 · Data refresh — Jans (machine); Scribe monitors log
 Entry: G0 pass. Runtime 15–40 min.
 - **try 1**: `bash rdagent/scenarios/qlib/tw_data/daily_update.sh`
 - **try 2**: isolate the failing dataset from the log → re-run `collect_finmind` with `--skip_*`
@@ -40,6 +42,8 @@ Entry: G0 pass. Runtime 15–40 min.
   and rebuild `dump_to_bin` + `dump_factor_h5` from the existing clean CSVs.
 - **exhausted** → mark `[>]`, proceed on stale data: verify test_end auto-trim, flag staleness in
   PROJECT_STATE → G1. Token/quota dead → **D3** as well.
+- 2026-10-22: blocked on D3. Collector hardened for the catch-up (D13/D14); after a gap this
+  long use the RUNBOOK §1 catch-up (`--refresh_ohlcv`), not plain `daily_update.sh`.
 
 ### `[ ]` G1 · Bin sanity gate — Jans runs; Scout reads output
 `_verify_bin.py` + `_smoke_qlib.py` (add `_smoke_qrun_tw.py` after schema changes).
@@ -99,7 +103,10 @@ collector datasets + cleaning rules + DECISIONS entry.
 
 ## Maintenance
 
-### `[ ]` T6 · Upstream sync — trigger: monthly or J6 — `risky`
+### `[~]` T6 · Upstream sync — trigger: monthly or J6 — `risky`
+- 2026-10-22: upstream v1.0.0 fetched (15 commits, mostly security). Trial merge clean; only
+  overlap `utils/env.py`, TW patch intact. Awaiting Jans's go-ahead; TW follow-ups listed in
+  PROJECT_STATE (ret.parquet in TW templates, signed pickles vs old `log/` sessions).
 - **try 1**: `git fetch upstream && git merge upstream/main` — clean merge.
 - **try 2**: conflicts → Architect maps each conflict against the patched-files list (CLAUDE.md)
   → targeted resolution.
@@ -127,6 +134,10 @@ the fix is a side effect.
 ### D3 · FinMind account — Jans only
 Token/tier issue. If Backer/Sponsor tier lapses: collector request strategy must change
 (per-stock mode) or fall back to `collect.py` (TWSE-direct) — either way, a DECISIONS entry.
+Per-stock mode alone can't replace it: `TaiwanStockPriceAdj` is Sponsor-only even per stock
+(verified 2026-10-22), so a lapsed tier means losing adjusted prices.
+- 2026-10-22: "Token is illegal" — token rotated/revoked. Fix: log in at finmindtrade.com, copy
+  the current API token into `FINMIND_TOKEN_API_KEY` in `.env`, confirm the tier.
 
 ## Diagram (main line)
 

@@ -73,6 +73,29 @@ retry ladders and jump rules instead of a linear list. Chosen because full-repo 
 is unaffordable; silo risk is mitigated by bounded reports and docs-as-single-source-of-truth.
 Revisit if long-context pricing collapses or the harness gains shared memory between subagents.
 
+**D13 — OHLCV cache self-heals FinMind's back-adjustment** *(2026-10-22)*
+`TaiwanStockPriceAdj` re-anchors all history at every ex-right/ex-dividend event (verified: the
+closes cached in May equal raw closes on their newest day and sit 1–9% below raw a year earlier).
+Appending new days to an old per-day cache therefore puts a fake dividend-sized return at the seam
+— after a Jun–Sep dividend season, for most stocks, inside the test window. Each by-date run now
+re-fetches the last verified day (`_ohlcv_parts/_verified_through.txt`); stocks whose close moved,
+or that resumed after a gap, get their full history re-fetched per stock into `_ohlcv_restated/`,
+which overrides the parts. Cost: 1 call/run + 1 per re-adjusted stock. Rejected: re-downloading
+the whole history every run (~4.4K calls/day). Deferred: raw `TaiwanStockPrice` + our own `$factor`
+from `TaiwanStockDividendResult` (proper qlib semantics, but must reproduce FinMind's adjustment
+math; ties into roadmap item 4). Revisit if FinMind exposes adjustment factors directly.
+
+**D14 — Never cache a failure; ranged caches get explicit refresh** *(2026-10-22)*
+`FinMindClient.get` returned `[]` on any error, so a rejected token ("Token is illegal", seen
+2026-10-22) would have written months of empty parts that are never re-fetched. Failures now
+return `None` and are skipped; a startup preflight aborts on a dead token or lost tier; empty
+answers for the last 7 days (not yet published) are left uncached. Per-stock fundamentals were
+cached forever — frozen at the first pull — so `--sparse_max_age_days` re-fetches by part mtime
+(resumable); macro per-id series (45 calls) always re-fetch. `daily_update.sh` now skips the broker
+pull, which with the default `--brokers` would have rewritten the 49-broker
+`broker_secid_agg.csv` with broker 1440 only. Known gap: fundamentals cover only stocks listed at
+fetch time (TaiwanStockInfo), so delisted names are missing — fix before S3 puts them in the bin.
+
 ---
 
 *Template for new entries:*

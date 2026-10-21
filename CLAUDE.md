@@ -127,6 +127,14 @@ Upstream classes got overridable attributes; TW subclasses set them:
 - **Factor-coder H5 contract**: LLM factor code reads `daily_pv.h5` with pandas (never qlib API).
   If you add fields to the bin, regenerate the H5 (`dump_factor_h5.py`) and keep the `FIELDS` list
   there in sync.
+- **FinMind adjusted prices move**: `TaiwanStockPriceAdj` is back-adjusted to the fetch date, so
+  adjusted closes fetched at different times must never be spliced. The collector's anchor
+  check + `_ohlcv_restated/` handles it (D13); after a crashed or long-gap update run
+  `--refresh_ohlcv`. Never hand-edit `_ohlcv_parts/_verified_through.txt`.
+- **FinMind token rotation**: tokens are non-expiring JWTs with a `token_version`; once rotated,
+  every call says "Token is illegal" (anonymous calls: "Your level is free"). The collector
+  preflight aborts — get a fresh token from finmindtrade.com into `.env`. Never "fix" it by
+  dropping to per-stock/free mode: `TaiwanStockPriceAdj` and by-date mode are Sponsor-only.
 
 ## Gitignore quirks to know
 

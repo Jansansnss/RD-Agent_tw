@@ -64,16 +64,26 @@ step() {
 }
 
 step "1/4  Collect latest day from FinMind (cached → only today fetches)"
+# Extra collector flags, e.g.
+#   COLLECT_ARGS="--refresh_ohlcv"            rebuild adjusted prices after a long gap
+#   COLLECT_ARGS="--sparse_max_age_days 20"   monthly fundamentals refresh (after the
+#                                             10th, when revenue posts; ~15K calls)
+read -r -a EXTRA_ARGS <<< "${COLLECT_ARGS:-}"
 python -u -m rdagent.scenarios.qlib.tw_data.collect_finmind \
     --start "$START" --end "$END" \
-    --skip_market_wide --skip_macro --skip_static --skip_derivatives
+    --skip_market_wide --skip_macro --skip_static --skip_derivatives \
+    --skip_secid_agg "${EXTRA_ARGS[@]}"
 # Notes on skip flags above:
 #   --skip_market_wide/--skip_macro: weekly-update cadence is enough for these;
 #     no point hammering daily.
 #   --skip_static: stock_info / trader_info / us_stock_info / futopt_info change
 #     monthly; skipped here to save quota.
 #   --skip_derivatives: futures / option daily; uncomment-remove if you trade them.
-# Drop these flags if you want everything updated daily.
+#   --skip_secid_agg: the broker-flow pull is a separate multi-week job driven by
+#     --brokers_file; run here with the default --brokers it would rewrite
+#     broker_secid_agg.csv with broker 1440 only.
+# Drop these flags if you want everything updated daily. Per-stock fundamentals
+# (month_revenue, dividend*, fs_*) never refresh without --sparse_max_age_days.
 
 step "2/4  Clean (TWSE-rule universe filter + per-file fixes)"
 python -u -m rdagent.scenarios.qlib.tw_data.clean_csvs
