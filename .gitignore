@@ -7,7 +7,12 @@ release-notes.md
 typescript*
 tmp/
 .ai/
-data/
+data/*
+!data/DATA_AUDIT_REPORT.md
+
+# local scratch at repo root
+/all_reports.zip
+/tmp_*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
