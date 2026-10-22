@@ -76,13 +76,21 @@ Rule: every value at `(datetime, instrument)` was known by the evening of `datet
 | `$div_yield $pe_ratio $pb_ratio` | `valuation.csv` | after the close |
 | `$issued_shares $foreign_held_pct` | `foreign_holdings.csv` | after the close |
 | `$rev $rev_yoy $rev_3m_yoy $rev_12m_yoy $rev_accel $rev_age` | `month_revenue.csv` | the 10th of the next month (legal deadline) |
-| `$in_universe $is_twse` | month-end market caps + `stock_info.csv` snapshots | from the next trading day |
+| `$in_universe $is_twse` | month-end index weights (from 2024-10) or market caps; listing dates | from the next trading day |
 | `$in_official` | `--official_list` (the contest's 150) | — |
 | `$industry_id` | `stock_info.csv` (specific industry over 電子工業) | static |
 
-- **Universe:** at each month end, the top 100 TWSE and top 50 TPEx common stocks by market cap
-  (4-digit codes starting 1–9, no TDRs, at least 60 trading days listed). The selection holds until
-  the next month end. The fixed July-2026 list is only used live and for `--universe official`.
+- **Universe:** at each month end, the top 100 TWSE and top 50 TPEx common stocks (4-digit codes
+  starting 1–9, no TDRs, at least 60 trading days listed), held until the next month end. Ranking
+  follows the contest's method: by TWSE/TPEx index weight where a month-end weight snapshot
+  exists (FinMind: from 2024-10-30), by raw market cap before that. On 2026-07-31 this matches
+  149/150 of the official list; the miss is 5371 中光電 vs its new holding company 3718. Raw caps
+  rank differently (台灣高鐵: 90th by cap, 145th by weight). The fixed July-2026 list is only used
+  live and for `--universe official`.
+- **Listing dates:** `stock_info.csv` board records are dated when FinMind recorded them, not when
+  a stock changed board (7769 鴻勁 listed in January 2026 but reads "emerging" until the
+  2026-10-22 record). For stocks that came off the emerging board, the first index-weight day is
+  the listing date; market type follows the weights when one is within 95 days (DECISIONS D19).
 - **Revenue timing:** FinMind's `date` (1st of the next month) is not the release day. The panel
   uses the 10th, so early publishers are seen late. That is conservative: it never looks ahead.
 - **VWAP caveat:** prices in `ohlcv.csv` are back-adjusted, but `$amount`/`$volume` are raw. So
@@ -135,31 +143,35 @@ The holdout only **confirms** a research pass (`HOLDOUT_GATE`): t ≥ 2.0, same 
 > 0, no year count (it is under a year long). The v2 plan's own thresholds (t > 2) stay right for
 the team's few pre-registered hypotheses; t ≥ 3 is for the loop's many trials.
 
-### First run (2026-10-22, data to 2026-05-08)
+### Baseline verdict (2026-10-23, data to 2026-10-22)
 
 The v2 hypotheses as baselines, point-in-time universe, top-24 book. Research = 2021-01-04 →
-2025-06-30; holdout = 2025-07-01 → 2026-05-08. (These are human, pre-registered ideas, so scoring
+2025-06-30; holdout = 2025-07-01 → 2026-10-22. (These are human, pre-registered ideas, so scoring
 them on the holdout is allowed; the holdout is now spent for them.) IC is at 20 days, t in brackets.
 
 | Alpha (pod) | IC research | 24d median research | IC holdout | 24d median holdout | book beta holdout |
 |---|---|---|---|---|---|
-| `rev_accel` (營收獲利動能) | +0.026 (1.9) | +0.49% | +0.111 (5.5) | +4.16% | 1.37 |
-| `rev_yoy` (營收獲利動能) | +0.003 (0.2) | +0.15% | +0.178 (7.0) | +3.91% | 1.34 |
-| `mom20` (價格動能) | −0.008 (−0.5) | −0.86% | +0.130 (4.0) | +9.61% | 1.68 |
-| `mom60_skip5` (價格動能) | −0.004 (−0.2) | −0.15% | +0.207 (5.6) | +9.07% | 1.70 |
-| `foreign_flow20` (資金流向) | −0.011 (−1.0) | −0.86% | +0.090 (3.8) | +4.18% | 1.36 |
-| `trust_flow20` (資金流向) | +0.002 (0.2) | −0.27% | +0.020 (1.0) | +2.01% | 1.56 |
-| `trust_flow5` (資金流向) | +0.000 (0.0) | −0.85% | +0.024 (1.3) | +1.61% | 1.46 |
-| `lowvol60` (風險控管) | +0.052 (1.6) | −0.03% | −0.205 (−5.4) | −5.50% | 0.22 |
-| `rev5` (reversal; IC at 1 day +0.026, t 4.4) | +0.003 (0.3) | −1.33% | −0.057 (−2.9) | −2.24% | 1.09 |
+| `rev_accel` (營收獲利動能) | +0.023 (1.7) | +0.63% | +0.085 (4.6) | +3.34% | 1.23 |
+| `rev_yoy` (營收獲利動能) | +0.004 (0.2) | +0.22% | +0.113 (3.5) | +2.68% | 1.26 |
+| `mom20` (價格動能) | −0.006 (−0.3) | −0.76% | +0.064 (1.8) | +5.09% | 1.36 |
+| `mom60_skip5` (價格動能) | −0.001 (−0.0) | −0.10% | +0.083 (1.6) | +4.02% | 1.49 |
+| `foreign_flow20` (資金流向) | −0.006 (−0.5) | −0.90% | +0.063 (2.8) | +1.91% | 1.22 |
+| `trust_flow20` (資金流向) | +0.004 (0.3) | −0.42% | +0.015 (0.8) | +1.50% | 1.28 |
+| `trust_flow5` (資金流向) | −0.001 (−0.1) | −0.83% | +0.017 (1.3) | −0.01% | 1.28 |
+| `lowvol60` (風險控管) | +0.052 (1.7) | +0.00% | −0.087 (−1.4) | −4.03% | 0.15 |
+| `rev5` (reversal; IC at 1 day +0.025, t 4.1) | +0.002 (0.2) | −1.13% | −0.033 (−1.7) | −2.78% | 1.17 |
 
-- Nothing passes the strict research gate. `rev_accel` is the only one positive in both windows
-  (research IC at 5 days t = 2.5, 24-day win rate 57%), so it is the strongest candidate.
-- Momentum **flipped**: slightly negative in 2021 to mid-2025, very strong since. Its holdout book
-  has beta 1.7, so much of that "excess" is the AI rally. It works while the regime lasts.
-- 投信 buying (`trust_flow*`), a v2 hypothesis, has no support in either window.
-- Short-term reversal is real at 1 day but its 75% turnover per rebalance eats it.
-- Rerun after the 2026-10 catch-up: the five months to October are missing here.
+- Nothing passes the strict research gate. `rev_accel` is the one candidate: research IC t 2.7
+  and 2.2 at 1 and 5 days (v2's own t > 2 bar for a single pre-registered test), holdout t 4.6 at
+  20 days with 78% of 24-day windows won. `rev_yoy` confirms the revenue pod on the holdout.
+- Momentum: the first run (data to 2026-05-08) showed a holdout t of 4.0. With five more months it
+  fell to 1.8, the worst 10% of 24-day windows lost 7.7%, and the book carries beta 1.4–1.5.
+  It is mostly the AI rally, and it can reverse fast.
+- 投信 buying (`trust_flow*`), a v2 hypothesis, has no support in either window. Foreign buying
+  works only on the holdout, which is a regime, not a confirmation.
+- Short-term reversal is real at 1 day, but its 75% turnover per rebalance eats it.
+- The May-data panel is kept in `data/alpha_tw_2026-05-08/`. Its numbers differ also because
+  prices were re-anchored and the universe now includes the 2025–26 listings.
 
 ## 7. LLM look-ahead protocol
 

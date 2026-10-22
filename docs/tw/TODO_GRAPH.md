@@ -121,19 +121,27 @@ collector datasets + cleaning rules + DECISIONS entry.
 Design: `docs/tw/ALPHA_FACTORY.md`. Runs beside the main line; contest dates bind (freeze 10/23,
 contest 10/27–11/27, v1.1 on 11/2). RD-Agent never enters the contest's daily path.
 
-### `[~]` T7 · Alpha panel + fast judge — Implementer
+### `[x]` T7 · Alpha panel + fast judge — Implementer
 `tw_data/dump_alpha_panel_tw.py` (point-in-time 150 universe, VWAP, revenue known on the 10th) +
 `tw_data/alpha_eval_tw.py` (RankIC, top-24 book with contest costs, 24-day windows, gate).
 - 2026-10-22: built; `_smoke_alpha_eval_tw` 15/15. First panel from the May clean data: 301
   stocks, 2019-01 → 2026-05-08, exact VWAP on 65% of universe rows; the May selection already
   matches 141/150 of the official list. Remaining: rebuild after the catch-up (phase 1 clean +
   phase 2 revenue) with `--raw_ohlcv` and `--official_list`; check overlap at 2026-07-31.
+- 2026-10-23: rebuilt on data through 2026-10-22 (May build kept in `data/alpha_tw_2026-05-08/`).
+  The 2026-07-31 selection first matched 141/150: 8 misses were 2025–26 listings that
+  `stock_info.csv` still called emerging. Now ranks by index weight from 2024-10 and dates
+  listings by first index weight (D19): 149/150; the miss is 3718, 5371's new holding company.
+  Smoke test 18/18. Exact VWAP on 61% of universe rows (raw closes end 2026-05-05 → S5).
 
-### `[~]` G3 · v2 hypotheses verdict — PM
+### `[x]` G3 · v2 hypotheses verdict — PM
 Run the baselines on research + holdout; hand results to the contest team (they own v2's gates).
 - 2026-10-22 (May data): none passes the strict gate; `rev_accel` positive in both windows;
   momentum negative before mid-2025, strong after (beta 1.7); 投信 flow unsupported. Table in
   ALPHA_FACTORY §6. Redo on the refreshed panel → `[x]`.
+- 2026-10-23 (data to 2026-10-22): `rev_accel` is the one candidate (research t 2.7/2.2 at 1/5
+  days; holdout t 4.6 at 20 days, 78% of 24-day windows won). Momentum's holdout edge faded
+  with five more months (t 4.0 → 1.8). 投信 flow still nothing. Handoff to the team: Jans.
 
 ### `[ ]` T8 · Judge into the loop — `risky` — Architect then Implementer
 New `alpha_tw` loop: scenario text (contest rules, pods, panel fields; no tickers/dates), runner
@@ -204,6 +212,10 @@ data files** (D2 in DECISIONS). Re-run clean→bin→H5 → back to **G1**.
   trading) are 390 of 3,041 bin instruments and cause 93% of the >10.5% daily moves. FinMind
   prices also include the pre-listing emerging months of later-listed stocks. A point-in-time
   listed-boards universe is buildable from `stock_info.csv` board records (DATA_AUDIT_REPORT).
+- 2026-10-23 (alpha factory): careful — `stock_info.csv` board records carry FinMind's record
+  date, not the change date (7769 listed Jan 2026 but stays "emerging" until the 2026-10-22
+  record; 6472 on TWSE since ≤ 2024-10 but recorded TPEx). First appearance in
+  `market_value_weight.csv` dates listings from 2024-10-30 (D19, `select_universe`).
 
 ### D2 · Deep debug — Architect (Opus; Fable if stuck) — `risky`
 Minimal repro first; check CLAUDE.md pitfalls (deadlock/9p/off-by-one have signatures). Exit

@@ -124,6 +124,21 @@ def load_stock_info(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return meta, snapshots
 
 
+def load_index_weights(path: Path) -> pd.DataFrame:
+    """TWSE/TPEx index weight snapshots: date, instrument, weight_per, type.
+
+    FinMind has them from 2024-10-30 (TWSE at month ends, with gaps; TPEx more often). Only
+    listed stocks carry a weight, and the contest list matches these weights' ranks.
+    """
+    cols = ["date", "instrument", "weight_per", "type"]
+    if not path.exists():
+        return pd.DataFrame(columns=cols)
+    weights = pd.read_csv(path, usecols=cols, dtype={"instrument": str})
+    weights = weights[weights["instrument"].map(is_stock)].copy()
+    weights["date"] = pd.to_datetime(weights["date"])
+    return weights
+
+
 def market_at(snapshots: pd.DataFrame, keys: pd.DataFrame) -> pd.Series:
     """Market (twse/tpex/emerging) of each (month_end, instrument) row in `keys`.
 
@@ -141,22 +156,53 @@ def market_at(snapshots: pd.DataFrame, keys: pd.DataFrame) -> pd.Series:
 
 def select_universe(mv: pd.DataFrame, first_seen: pd.Series, calendar: pd.DatetimeIndex,
                     snapshots: pd.DataFrame, n_twse: int = 100, n_tpex: int = 50,
-                    min_history_days: int = 60) -> pd.DataFrame:
-    """Top-n TWSE + top-n TPEx stocks by market cap at every month end in `mv`."""
+                    min_history_days: int = 60, index_weights: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Top-n TWSE + top-n TPEx stocks at every month end in `mv`.
+
+    The contest list matches index-weight ranks, not raw market caps (149/150 on 2026-07-31;
+    台灣高鐵 is 90th by market cap but 145th by weight). So where a month-end weight snapshot
+    exists (from 2024-10-30), stocks are ranked by weight; earlier, by market cap.
+
+    Market type comes from the weights when one is within 95 days (they catch TPEx -> TWSE
+    moves), else from FinMind's snapshots. Those snapshots are dated when FinMind recorded
+    them, not when the type changed, so a stock that came off the emerging board stays
+    "emerging" there until FinMind's next refresh. For those stocks the first weight day is the
+    listing date: before it they are emerging, and seasoning counts from it.
+    """
     month_ends = calendar.to_series().groupby(calendar.to_period("M")).max()
     cand = mv[mv["date"].isin(month_ends.to_numpy()) & mv["instrument"].map(is_stock)]
     cand = cand.rename(columns={"date": "month_end"}).reset_index(drop=True)
-    pos = pd.Series(np.arange(len(calendar)), index=calendar)
-    listed = cand["instrument"].map(first_seen)
-    age = pos.reindex(cand["month_end"]).to_numpy() - pos.reindex(listed).to_numpy()
-    cand = cand[age >= min_history_days].copy()
     cand["market"] = market_at(snapshots, cand)
+    cand["weight"] = np.nan
+    listed = cand["instrument"].map(first_seen)
+    if index_weights is not None and len(index_weights):
+        w = index_weights.sort_values("date")
+        keys = cand[["month_end", "instrument"]].reset_index().sort_values("month_end")
+
+        def latest(col: str, days: int) -> pd.Series:
+            hit = pd.merge_asof(keys, w, left_on="month_end", right_on="date", by="instrument",
+                                direction="backward", tolerance=pd.Timedelta(days=days))
+            return pd.Series(hit[col].to_numpy(), index=hit["index"].to_numpy()).reindex(cand.index)
+
+        cand["market"] = latest("type", 95).fillna(cand["market"])
+        cand["weight"] = latest("weight_per", 5)
+        debuts = w.groupby("instrument")["date"].min()
+        movers = set(snapshots.loc[snapshots["type"] == "emerging", "instrument"]) & set(debuts.index)
+        is_mover = cand["instrument"].isin(movers)
+        debut = cand["instrument"].map(debuts)
+        cand.loc[is_mover & ~(cand["month_end"] >= debut), "market"] = "emerging"
+        listed = listed.where(~is_mover, debut)
+    cal = calendar.to_numpy()
+    age = np.searchsorted(cal, cand["month_end"].to_numpy()) - np.searchsorted(cal, listed.to_numpy())
+    cand = cand[age >= min_history_days].copy()
     picks = []
     for (_, market), grp in cand[cand["market"].isin(["twse", "tpex"])].groupby(["month_end", "market"]):
-        top = grp.nlargest(n_twse if market == "twse" else n_tpex, "market_value").copy()
+        key = "weight" if grp["weight"].notna().mean() >= 0.8 else "market_value"
+        top = grp.dropna(subset=[key]).nlargest(n_twse if market == "twse" else n_tpex, key).copy()
         top["rank"] = np.arange(1, len(top) + 1)
+        top["ranked_by"] = key
         picks.append(top)
-    cols = ["month_end", "instrument", "market", "rank", "market_value"]
+    cols = ["month_end", "instrument", "market", "rank", "ranked_by", "market_value"]
     return pd.concat(picks)[cols].sort_values(["month_end", "market", "rank"]).reset_index(drop=True)
 
 
@@ -243,7 +289,10 @@ def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
           official_list: Path | None, n_twse: int, n_tpex: int, min_history_days: int) -> None:
     mv, first_seen, calendar = load_market_value(input_dir / "market_value.csv", start)
     meta, snapshots = load_stock_info(input_dir / "stock_info.csv")
-    universe = select_universe(mv, first_seen, calendar, snapshots, n_twse, n_tpex, min_history_days)
+    weights = load_index_weights(input_dir / "market_value_weight.csv")
+    universe = select_universe(mv, first_seen, calendar, snapshots, n_twse, n_tpex, min_history_days, weights)
+    by_weight = universe.loc[universe["ranked_by"] == "weight", "month_end"].nunique()
+    print(f"Ranking: {by_weight} month ends use index weights for at least one market; the rest market cap")
     universe = universe[universe["month_end"] >= pd.Timestamp(start) - pd.DateOffset(months=1)]
     official: set[str] = set()
     if official_list is not None:

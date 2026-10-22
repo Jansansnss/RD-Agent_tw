@@ -141,6 +141,20 @@ mix accounting standards. So a refresh mirrors the source, and the May copy stay
 `data/tw_finmind_full_clean_2026-05-backup/`. Revisit at S3: restore identity-checked quarters if
 history depth matters there.
 
+**D19 — Alpha universe ranks by index weight; listings dated by first index weight** *(2026-10-23)*
+The contest's 150 match TWSE/TPEx index-weight ranks on 2026-07-31 (149/150), not raw market
+caps (台灣高鐵 is 90th by cap, 145th by weight). So `select_universe` ranks by
+`market_value_weight.csv` where a month-end snapshot exists (from 2024-10-30; TWSE lacks Nov 2024
+to Jan 2025 and Mar 2025) and by market cap before that. FinMind's `stock_info.csv` board records
+are dated when FinMind recorded them, not when the board changed: 8 of the first build's 9 misses
+were 2025–26 listings still marked emerging (7769 listed Jan 2026, record dated 2026-10-22), and
+6472 showed TPEx two years after moving to TWSE. For the 160 stocks with an emerging record, the
+first index-weight day is the listing date (seasoning counts from it); market type follows the
+weights when one is within 95 days. Before 2024-10 FinMind has no emerging records, so this
+can't help there; only 2 member-months since 2021 show a > 10.5% daily move (no price limit) in
+the 60 days before selection. Revisit if exchange listing dates are collected; they would also
+settle the bin-universe question under TODO D1.
+
 ---
 
 *Template for new entries:*

@@ -146,6 +146,9 @@ Upstream classes got overridable attributes; TW subclasses set them:
 - **Adjusted prices, raw amounts**: in `ohlcv.csv` the prices are back-adjusted but `$amount` and
   `$volume` are raw, so `amount/volume` is a raw VWAP (2330, 2021-06-01: 596.9 vs adjusted close
   545.3). Rescale with raw closes or don't mix them (D17).
+- **FinMind `stock_info` dates are record dates**: a board change (emerging → listed, TPEx →
+  TWSE) appears only when FinMind re-records the stock, sometimes many months later. Date
+  listings by the first `market_value_weight.csv` row instead (from 2024-10-30; D19).
 - **`deepseek-chat` is retired** (DeepSeek, 2026-07-24): loops on that model name fail. Use
   `deepseek-flash` or `deepseek-v4-pro`, and log the served model (J7, D16).
 - **Instrument codes are text**: read every CSV with `dtype={"instrument": str}` (and

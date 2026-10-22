@@ -113,6 +113,32 @@ def main() -> None:
     got = dp.market_at(snaps, keys).tolist()
     results.append(check("market as of each date", got == ["tpex", "tpex", "twse"], str(got)))
 
+    # 8. Index weights: a stock off the emerging board counts from its first weight day, not
+    #    from FinMind's snapshot date (which lagged ~9 months for 7769 in the real data); ranks
+    #    follow weights, not raw market caps; weights fix a stale market type.
+    cal = pd.bdate_range("2025-01-01", "2025-07-31")
+    caps = {"1101": 100, "2633": 900, "6472": 50, "7769": 500}
+    mv = pd.DataFrame([(d, c, cap) for d in cal for c, cap in caps.items()],
+                      columns=["date", "instrument", "market_value"])
+    snaps = pd.DataFrame({"instrument": ["1101", "2633", "6472", "7769", "7769"],
+                          "date": pd.to_datetime(["2020-01-01"] * 3 + ["2025-01-02", "2026-10-22"]),
+                          "type": ["twse", "twse", "tpex", "emerging", "twse"]})
+    first_seen = pd.Series(pd.Timestamp("2024-06-03"), index=list(caps))  # emerging rows count here
+    ends = cal.to_series().groupby(cal.to_period("M")).max()
+    weights = [(d, c, wt, "twse") for d in ends for c, wt in {"1101": 3.0, "2633": 1.0, "6472": 2.0}.items()]
+    weights += [(d, "7769", 5.0, "twse") for d in [pd.Timestamp("2025-03-03"), *ends[ends >= "2025-03-03"]]]
+    weights = pd.DataFrame(weights, columns=["date", "instrument", "weight_per", "type"])
+    uni = dp.select_universe(mv, first_seen, pd.DatetimeIndex(cal), snaps, n_twse=2, n_tpex=1,
+                             min_history_days=60, index_weights=weights)
+    picks = uni.groupby("month_end")["instrument"].apply(set)
+    apr, jun = picks.get(pd.Timestamp("2025-04-30"), set()), picks.get(pd.Timestamp("2025-06-30"), set())
+    results.append(check("ranked by weight; 7769 listed 43 days: not yet", apr == {"1101", "6472"},
+                         str(sorted(apr))))
+    results.append(check("7769 listed 86 days: in, as TWSE", jun == {"7769", "1101"} and
+                         set(uni.loc[uni["instrument"] == "7769", "market"]) == {"twse"}, str(sorted(jun))))
+    results.append(check("stale TPEx snapshot overridden by weights",
+                         set(uni.loc[uni["instrument"] == "6472", "market"]) == {"twse"}))
+
     print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):
         raise SystemExit(1)

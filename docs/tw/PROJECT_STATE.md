@@ -28,6 +28,13 @@ ETF codes into real stocks' margin rows in the May bin · cleaner skipped two st
 Also: FinMind deleted 5.7% of `fs_balance` history (D18, May copy archived), and qlib can't read
 `$amount` (written as `$amount.day.bin`).
 
+**Alpha factory** (T7 `[x]`, G3 `[x]`): panel rebuilt on this data. Its universe now ranks by
+index weight where FinMind has it (from 2024-10) and dates listings by first index weight (D19):
+149/150 match with the official list (the miss is 3718, 5371's new holding company). Refreshed
+verdict (ALPHA_FACTORY §6): revenue acceleration is the one candidate; momentum's holdout edge
+faded with five more months; 投信 flow still shows nothing. For decision 1: `stock_info` record
+dates can't date listings (D19).
+
 ## Snapshot — 2026-10-22 (evening): alpha factory for AI CUP 2026
 
 **New line of work:** RD-Agent becomes the offline alpha lab for the AI CUP 2026 ETF-agent contest
