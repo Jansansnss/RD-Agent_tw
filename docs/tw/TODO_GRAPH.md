@@ -35,8 +35,10 @@ Edges: all pass + data stale → **T0** · all pass + J1 → **T2** · health fa
 repo → resolve/commit first (PM).
 - 2026-10-22: repo cleaned (July docs committed); data 5.5 months stale (calendar ends
   2026-05-08); FinMind token rejected → T0 blocked on **D3**. health_check not run.
+- 2026-10-23: token and data done (T0, G1). Still open: `rdagent health_check`, which needs the
+  retired `deepseek-chat` model name replaced first (J7/D0).
 
-### `[!]` T0 · Data refresh — Jans (machine); Scribe monitors log
+### `[x]` T0 · Data refresh — Jans (machine); Scribe monitors log
 Entry: G0 pass. Runtime 15–40 min.
 - **try 1**: `bash rdagent/scenarios/qlib/tw_data/daily_update.sh`
 - **try 2**: isolate the failing dataset from the log → re-run `collect_finmind` with `--skip_*`
@@ -47,11 +49,18 @@ Entry: G0 pass. Runtime 15–40 min.
   PROJECT_STATE → G1. Token/quota dead → **D3** as well.
 - 2026-10-22: blocked on D3. Collector hardened for the catch-up (D13/D14); after a gap this
   long use the RUNBOOK §1 catch-up (`--refresh_ohlcv`), not plain `daily_update.sh`.
+- 2026-10-23: done. Catch-up + one `daily_update.sh` run → data through 2026-10-22 (bin: 3,041
+  instruments, 4,103 days). Fixed on the way: OOM in long-format merges (now streamed), gov_bank
+  never collected (renamed dataset), ETF codes mangled by `dump_to_bin`, anchor check now also
+  covers the day before. Logs: `data/_catchup_20261022.log`, `data/_daily_update_20261023.log`.
 
-### `[ ]` G1 · Bin sanity gate — Jans runs; Scout reads output
+### `[x]` G1 · Bin sanity gate — Jans runs; Scout reads output
 `_verify_bin.py` + `_smoke_qlib.py` (add `_smoke_qrun_tw.py` after schema changes).
 Pass → T2 (or T4 if that's the campaign). Fail → **D1**. Three failed fix cycles → escalate
 Architect (`risky`).
+- 2026-10-23: pass. `_verify_bin` 21/21 non-null; new-window checks: no seam at the old cache
+  edge, coverage ≥ the prior six months, no duplicate keys, no NaN drift, H5 and qlib read
+  2026-10-22. Note `_smoke_qlib.py` tests the legacy `tw_daily_mini.h5`, not the bin.
 
 ### `[ ]` T2 · Factor campaign — Jans launches; PM decides; Scout monitors
 Entry: G1 `[x]` **and** J5 cleared.
@@ -191,6 +200,10 @@ PROJECT_STATE.
 ### D1 · Data quality — Scout diagnoses → Implementer fixes
 Rules live in `data/DATA_AUDIT_REPORT.md`. Fixes go into **collector + cleaner, never hand-edit
 data files** (D2 in DECISIONS). Re-run clean→bin→H5 → back to **G1**.
+- 2026-10-23: open universe question for Jans: 興櫃 emerging-board stocks (no price limit, thin
+  trading) are 390 of 3,041 bin instruments and cause 93% of the >10.5% daily moves. FinMind
+  prices also include the pre-listing emerging months of later-listed stocks. A point-in-time
+  listed-boards universe is buildable from `stock_info.csv` board records (DATA_AUDIT_REPORT).
 
 ### D2 · Deep debug — Architect (Opus; Fable if stuck) — `risky`
 Minimal repro first; check CLAUDE.md pitfalls (deadlock/9p/off-by-one have signatures). Exit
@@ -204,6 +217,7 @@ Per-stock mode alone can't replace it: `TaiwanStockPriceAdj` is Sponsor-only eve
 (verified 2026-10-22), so a lapsed tier means losing adjusted prices.
 - 2026-10-22: "Token is illegal" — token rotated/revoked. Fix: log in at finmindtrade.com, copy
   the current API token into `FINMIND_TOKEN_API_KEY` in `.env`, confirm the tier.
+- 2026-10-23: resolved — new token, account level 3 (Sponsor), 6,000 calls/hour (rolling).
 
 ## Diagram (main line)
 

@@ -3,6 +3,31 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-23: data current through 2026-10-22
+
+**Data refreshed** (T0 `[x]`, G1 `[x]`): clean CSVs, qlib bin (3,041 instruments, 4,103 days) and
+`daily_pv.h5` run through 2026-10-22, so loops get `test_end` 2026-10-21 (the wrapper derives it).
+Fundamentals are refreshed (revenue through September), and `gov_bank` exists for the first time.
+Full write-up: `data/DATA_AUDIT_REPORT.md` → "Refresh 2026-10-23". The alpha-factory session
+rebuilds its panel from this data.
+
+**Bugs fixed during the run** (code, not data edits): adjusted-price drift confirmed live (58% of
+instruments moved since May; D13 now checks two anchor days) · OOM kill of a 2 GB in-memory merge
+(merges now stream) · `gov_bank` never collected (renamed dataset; D14) · `dump_to_bin` mangled 9
+ETF codes into real stocks' margin rows in the May bin · cleaner skipped two stock files.
+
+**Decisions waiting for Jans:**
+1. **Emerging-board (興櫃) stocks in the universe**: 13% of instruments, ~9% of 2021+ rows, 93% of
+   the >10.5% daily moves; a point-in-time listed-boards universe is buildable (TODO D1 note).
+2. **Upstream v1.0.0 merge** (T6): still clean, still unmerged; follow-ups in the 2026-10-22
+   snapshot below.
+3. **S5 raw `TaiwanStockPrice`**: exact VWAP, and the basis for a proper `$factor` (D13 deferred).
+4. **Push**: `main` has several local-only commits; Windows git lacks the GitHub host key, so push
+   from WSL.
+
+Also: FinMind deleted 5.7% of `fs_balance` history (D18, May copy archived), and qlib can't read
+`$amount` (written as `$amount.day.bin`).
+
 ## Snapshot — 2026-10-22 (evening): alpha factory for AI CUP 2026
 
 **New line of work:** RD-Agent becomes the offline alpha lab for the AI CUP 2026 ETF-agent contest
@@ -86,9 +111,9 @@ left by that session had blocked the commit).
 > 2026-07-09; that file is authoritative for "what next"). Team/model assignments:
 > `docs/tw/AGENT_PLAYBOOK.md`.
 
-1. **Refresh data & resume factor loop** on the full universe (refresh blocked on D3 as of
-   2026-10-22); harvest/aggregate results from `log/` sessions into a findings doc (which
-   factors reached SOTA, IC stats).
+1. **Resume factor loop** on the full universe (data refreshed 2026-10-23; loops first need the
+   J7 model-name switch); harvest/aggregate results from `log/` sessions into a findings doc
+   (which factors reached SOTA, IC stats).
 2. **Real VWAP**: `ohlcv.csv` carries `$amount`, but amount/volume is a raw VWAP against
    back-adjusted prices; collect raw `TaiwanStockPrice` first (TODO S5, D17).
 3. **Fundamentals into bin**: pivot curated `type` values from long-format `fs_income/balance/
@@ -110,8 +135,8 @@ left by that session had blocked the commit).
   for qrun.
 - LLM: LiteLLM proxy → `deepseek/deepseek-chat` (**retired by DeepSeek 2026-07-24** — switch to
   `deepseek-flash` or `deepseek-v4-pro` before any loop, J7); keys + `FINMIND_TOKEN_API_KEY` in untracked
-  `.env`. FinMind tier: Backer/Sponsor (affects collector request strategy); the token in `.env`
-  was rejected on 2026-10-22.
+  `.env`. FinMind tier: Sponsor (account level 3, 6,000 calls/hour rolling); the token was
+  rotated and replaced on 2026-10-22.
 - WSL2 has ~11 GB RAM; the OHLCV merge (~8M rows) peaks at a few GB.
 - Operator wrappers (untracked, root): `_run_factor_tw.sh` (preferred; sets CHAT_STREAM=false,
   absolute data folders, auto-trims test_end), `_launch_rd_loop.sh` (older). Recreate from

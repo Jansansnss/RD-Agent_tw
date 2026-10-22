@@ -116,6 +116,10 @@ RECENT_EMPTY_RETRY_DAYS = 7
 # Known trading day for the startup token/tier probe.
 PREFLIGHT_DAY = "2024-01-02"
 
+# A dataset whose first this-many requests all fail is skipped for the run
+# (renamed dataset, lost tier) instead of burning thousands of calls.
+ABORT_AFTER_FAILURES = 5
+
 
 def _load_token() -> str:
     load_dotenv()
@@ -194,15 +198,20 @@ class FinMindClient:
                     # Unknown non-200 status: log and bail.
                     print(f"  WARN {dataset} {params}: {payload}", file=sys.stderr)
                     return None
-                if resp.status_code == 402:
+                if resp.status_code in (402, 429):
                     wait = min(60 * (2 ** rl_attempt), 1800)
                     rl_attempt += 1
                     print(
-                        f"  HTTP 402 rate limit. Sleep {wait}s (attempt #{rl_attempt}) ...",
+                        f"  HTTP {resp.status_code} rate limit. Sleep {wait}s (attempt #{rl_attempt}) ...",
                         file=sys.stderr, flush=True,
                     )
                     time.sleep(wait)
                     continue
+                # Other 4xx (bad dataset name or params, auth) won't succeed on
+                # retry; 5xx falls through to the retry below.
+                print(f"  WARN {dataset} {params}: HTTP {resp.status_code} {resp.text[:200]}", file=sys.stderr)
+                if resp.status_code < 500:
+                    return None
             except Exception as e:
                 print(f"  WARN {dataset} network attempt {attempt}: {e}", file=sys.stderr)
             attempt += 1
@@ -277,11 +286,14 @@ def _ensure_parts_by_date(
         failed = deferred = 0
         with _make_progress() as progress:
             task = progress.add_task(name, total=len(pending), postfix="")
-            for d in reversed(pending):
+            for i, d in enumerate(reversed(pending)):
                 ymd = d.strftime("%Y-%m-%d")
                 rows = client.get(dataset, start_date=ymd, end_date=ymd, **(extra_params or {}))
                 if rows is None:
                     failed += 1
+                    if failed == i + 1 == ABORT_AFTER_FAILURES:
+                        print(f"  {name}: first {failed} requests all failed — skipping it this run.", file=sys.stderr)
+                        break
                 elif rows or d < recent:
                     pd.DataFrame(rows).to_csv(parts_dir / f"{d.strftime('%Y%m%d')}.csv", index=False)
                 else:
@@ -291,6 +303,37 @@ def _ensure_parts_by_date(
         if failed or deferred:
             print(f"  {name}: {failed} failed + {deferred} recent empty day(s) left uncached; re-run to retry.")
     return dates
+
+
+def _part_paths(parts_dir: Path, dates: pd.DatetimeIndex) -> list[Path]:
+    """Non-empty cached per-day parts for ``dates``, in date order."""
+    paths = [parts_dir / f"{d.strftime('%Y%m%d')}.csv" for d in dates]
+    return [p for p in paths if p.exists() and p.stat().st_size > 1]
+
+
+def _header_union(paths: list[Path]) -> list[str]:
+    """Union of the parts' columns in first-seen order (what ``pd.concat`` yields)."""
+    cols: list[str] = []
+    for p in paths:
+        cols += [c for c in pd.read_csv(p, nrows=0).columns if c not in cols]
+    return cols
+
+
+def _stream_to_csv(paths: list[Path], out_path: Path, prep) -> int:
+    """Write ``prep(part)`` for each part to ``out_path``, one part in memory at a time.
+
+    Long-format merges are too big to concatenate: option_daily (~2 GB of CSV)
+    got the 2026-10-22 catch-up OOM-killed on an 11 GB WSL box. ``prep`` must
+    return the same columns for every part (reindex to a ``_header_union``).
+    """
+    tmp = out_path.with_name(out_path.name + ".tmp")
+    rows = 0
+    for i, p in enumerate(paths):
+        f = prep(_read_part(p))
+        f.to_csv(tmp, mode="a" if i else "w", header=not i, index=False)
+        rows += len(f)
+    os.replace(tmp, out_path)
+    return rows
 
 
 def _iter_parts_by_date(parts_dir: Path, dates: pd.DatetimeIndex) -> Iterable[pd.DataFrame]:
@@ -349,10 +392,13 @@ def _download_per_stock(
         failed = 0
         with _make_progress() as progress:
             task = progress.add_task(name, total=len(pending), postfix="")
-            for code in pending:
+            for i, code in enumerate(pending):
                 rows = client.get(dataset, data_id=code, start_date=start, end_date=end)
                 if rows is None:
                     failed += 1  # keep any older part; retried next run
+                    if failed == i + 1 == ABORT_AFTER_FAILURES:
+                        print(f"  {name}: first {failed} requests all failed — skipping it this run.", file=sys.stderr)
+                        break
                 else:
                     pd.DataFrame(rows).to_csv(parts_dir / f"{code}.csv", index=False)
                 time.sleep(client.sleep)
@@ -395,12 +441,12 @@ def _concat_clean(frames: list[pd.DataFrame], rename: dict, keep_cols: list[str]
 # stock with an event since; appending fresh days to them would put a fake
 # dividend-sized "return" at the seam.
 #
-# So each by-date run re-fetches one anchor day: the newest day the previous
-# run verified (OHLCV_VERIFIED). Stocks whose anchor close moved, plus stocks
-# that skipped the anchor (suspended) and came back, get their full history
-# re-fetched per stock into ``_ohlcv_restated/<stock>.csv``, which overrides
-# the per-day parts up to its last date. Invariant after every successful
-# run: all cached rows are adjusted as of that run.
+# So each by-date run re-fetches an anchor day, the newest day the previous run
+# verified (OHLCV_VERIFIED), and the trading day before it. Stocks whose close
+# moved, plus stocks that skipped the anchor (suspended) and came back, get
+# their full history re-fetched per stock into ``_ohlcv_restated/<stock>.csv``,
+# which overrides the per-day parts up to its last date. Invariant after every
+# successful run: all cached rows are adjusted as of that run.
 
 OHLCV_RENAME = {
     "stock_id": "instrument",
@@ -547,7 +593,12 @@ def download_ohlcv(client, codes, start, end, output_dir, refresh=False):
                     f"OHLCV anchor day {anchor} is outside {start}..{end}; widen the range "
                     "or pass --refresh_ohlcv."
                 )
+            # Also check the trading day before: an ex-date on the anchor day itself only
+            # rescales earlier days, which a late re-adjustment would leave undetected.
+            before = eff.loc[eff["date"] < anchor, "date"]
             affected = _readjusted_stocks(client, dataset, eff, anchor)
+            if len(before):
+                affected |= _readjusted_stocks(client, dataset, eff, before.max())
             if affected:
                 _restate(client, dataset, affected, start, end, restated_dir, restated)
                 eff = _apply_restated(raw, restated)
@@ -1032,10 +1083,11 @@ DAILY_STOCK_AGG_SPECS: list[dict] = [
         "long_format": True,  # `market` distinguishes TWSE vs TPEx — multiple rows
     },
     {
-        # NOTE: dataset name has lowercase 's' in 'Taiwanstock' — typo in FinMind's
-        # API, must match exactly.
+        # FinMind once spelled this 'Taiwanstock...'; by 2026-10 that name
+        # returns HTTP 422, and every May-era part was a failure cached as an
+        # empty day.
         "label": "八大行庫 (GovernmentBankBuySell)",
-        "dataset": "TaiwanstockGovernmentBankBuySell",
+        "dataset": "TaiwanStockGovernmentBankBuySell",
         "filename": "gov_bank.csv",
         "rename": {"stock_id": "instrument"},
         "keep": ["buy_amount", "sell_amount", "buy", "sell", "bank_name"],
@@ -1048,43 +1100,47 @@ DAILY_STOCK_AGG_SPECS: list[dict] = [
 def _run_daily_stock_agg(client, codes, start, end, output_dir, spec):
     """Download one daily per-stock aggregate. ``codes is None`` => by-date mode."""
     parts = output_dir / f"_{Path(spec['filename']).stem}_parts"
-    if codes is None:
-        frames = _download_by_date(client, spec["label"], spec["dataset"], start, end, parts)
-    else:
-        frames = _download_per_stock(client, spec["label"], spec["dataset"], codes, start, end, parts)
-
-    if spec.get("long_format"):
-        # Skip the (date, instrument) dedup so multi-row-per-key schemas
-        # (holding brackets, lend events, block trades, gov-bank breakdown,
-        # market split) keep all rows.
-        frames = [f for f in frames if not f.empty]
-        if not frames:
+    if not spec.get("long_format"):
+        if codes is None:
+            frames = _download_by_date(client, spec["label"], spec["dataset"], start, end, parts)
+        else:
+            frames = _download_per_stock(client, spec["label"], spec["dataset"], codes, start, end, parts)
+        df = _concat_clean(frames, spec["rename"], spec["keep"], spec["num"])
+        if df.empty:
             print(f"  No {spec['label']} data retrieved.")
             return
-        df = pd.concat(frames, ignore_index=True)
-        df = df.rename(columns={k: v for k, v in spec["rename"].items() if k in df.columns})
-        if "instrument" in df.columns:
-            df["instrument"] = df["instrument"].astype(str).str.zfill(4)
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df = df.dropna(subset=["date"])
-        keep = ["date"]
-        if "instrument" in df.columns:
-            keep.append("instrument")
-        keep += [c for c in spec["keep"] if c in df.columns]
-        df = df[keep].copy()
-        for col in spec["num"]:
-            if col in df.columns:
-                df[col] = _to_num_vec(df[col])
-        sort_cols = [c for c in ("date", "instrument") if c in df.columns]
-        df = df.sort_values(sort_cols).reset_index(drop=True)
-    else:
-        df = _concat_clean(frames, spec["rename"], spec["keep"], spec["num"])
+        df.to_csv(output_dir / spec["filename"], index=False)
+        print(f"  Saved {spec['filename']}  ({len(df):,} rows)")
+        return
 
-    if df.empty:
+    # Long format: skip the (date, instrument) dedup so multi-row-per-key
+    # schemas (holding brackets, lend events, block trades, gov-bank breakdown,
+    # market split) keep all rows; streamed because these files run to GBs.
+    if codes is None:
+        dates = _ensure_parts_by_date(client, spec["label"], spec["dataset"], start, end, parts)
+        paths = _part_paths(parts, dates)
+    else:
+        _download_per_stock(client, spec["label"], spec["dataset"], codes, start, end, parts)
+        paths = [p for p in (parts / f"{c}.csv" for c in codes) if p.exists() and p.stat().st_size > 1]
+    if not paths:
         print(f"  No {spec['label']} data retrieved.")
         return
-    df.to_csv(output_dir / spec["filename"], index=False)
-    print(f"  Saved {spec['filename']}  ({len(df):,} rows)")
+    union = [spec["rename"].get(c, c) for c in _header_union(paths)]
+    cols = ["date"] + (["instrument"] if "instrument" in union else []) + [c for c in spec["keep"] if c in union]
+
+    def prep(f: pd.DataFrame) -> pd.DataFrame:
+        f = f.rename(columns={k: v for k, v in spec["rename"].items() if k in f.columns})
+        if "instrument" in f.columns:
+            f["instrument"] = f["instrument"].astype(str).str.zfill(4)
+        f["date"] = pd.to_datetime(f["date"], errors="coerce")
+        f = f.dropna(subset=["date"]).reindex(columns=cols)
+        for col in spec["num"]:
+            if col in f.columns:
+                f[col] = _to_num_vec(f[col])
+        return f.sort_values([c for c in ("date", "instrument") if c in cols], kind="stable")
+
+    rows = _stream_to_csv(paths, output_dir / spec["filename"], prep)
+    print(f"  Saved {spec['filename']}  ({rows:,} rows)")
 
 
 # ===========================================================================
@@ -1390,19 +1446,21 @@ def download_trader_info(client, output_dir):
 
 def _download_derivatives_by_date(client, label, dataset, start, end, output_dir, filename, id_col):
     parts = output_dir / f"_{Path(filename).stem}_parts"
-    frames = _download_by_date(client, label, dataset, start, end, parts)
-    frames = [f for f in frames if not f.empty]
-    if not frames:
+    paths = _part_paths(parts, _ensure_parts_by_date(client, label, dataset, start, end, parts))
+    if not paths:
         print(f"  No {label} data retrieved.")
         return
-    df = pd.concat(frames, ignore_index=True)
-    if id_col in df.columns:
-        df = df.rename(columns={id_col: "instrument"})
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df = df.dropna(subset=["date"])
-    df.to_csv(output_dir / filename, index=False)
-    print(f"  Saved {filename}  ({len(df):,} rows)")
+    cols = ["instrument" if c == id_col else c for c in _header_union(paths)]
+
+    def prep(f: pd.DataFrame) -> pd.DataFrame:
+        f = f.rename(columns={id_col: "instrument"})
+        if "date" in f.columns:
+            f["date"] = pd.to_datetime(f["date"], errors="coerce")
+            f = f.dropna(subset=["date"])
+        return f.reindex(columns=cols)
+
+    rows = _stream_to_csv(paths, output_dir / filename, prep)  # option_daily alone is ~2 GB
+    print(f"  Saved {filename}  ({rows:,} rows)")
 
 
 def download_futures_daily(client, start, end, output_dir):

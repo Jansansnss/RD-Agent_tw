@@ -38,7 +38,10 @@ Collector cache rules (why: DECISIONS D13/D14):
   (~4.4K calls).
 - Per-stock fundamentals (`month_revenue`, `dividend*`, `fs_*`) never refresh by themselves: once
   a month after the 10th (revenue posting deadline) run with
-  `COLLECT_ARGS="--sparse_max_age_days 20"` (~15K calls, resumable).
+  `COLLECT_ARGS="--sparse_max_age_days 20"` (~15K calls, resumable). A refresh **mirrors
+  FinMind, including deletions**: on 2026-10-22 it dropped 5.7% of `fs_balance` rows (mostly
+  2012–13 quarters). Copy those CSVs aside first if you might need the old rows; the May 2026 copy
+  is in `data/tw_finmind_full_clean_2026-05-backup/`.
 
 **Catch-up after a long gap** — two phases so the bin is usable before the slow fundamentals:
 
@@ -58,6 +61,11 @@ python -u -m rdagent.scenarios.qlib.tw_data.clean_csvs
 
 Delete `data/tw_finmind_full/_ohlcv_parts.stale/` and `_ohlcv_restated.stale/` once phase 1 has
 produced a good bin.
+
+**After any collection run**, grep its log for `WARN`, `failed` and `skipping it this run`: a
+dataset that fails is left uncached (re-run retries it) but its CSV keeps the previous content.
+Progress bars only print at the end when output is piped/tee'd; watch the parts dirs' file
+counts instead.
 
 **Verify data**: `python -m rdagent.scenarios.qlib.tw_data._verify_bin` and `_inspect.py`.
 **Full FinMind re-collect from scratch**: move `data/tw_finmind_full/` aside and run the catch-up

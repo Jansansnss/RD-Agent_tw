@@ -78,7 +78,8 @@ Revisit if long-context pricing collapses or the harness gains shared memory bet
 closes cached in May equal raw closes on their newest day and sit 1–9% below raw a year earlier).
 Appending new days to an old per-day cache therefore puts a fake dividend-sized return at the seam
 — after a Jun–Sep dividend season, for most stocks, inside the test window. Each by-date run now
-re-fetches the last verified day (`_ohlcv_parts/_verified_through.txt`); stocks whose close moved,
+re-fetches the last verified day (`_ohlcv_parts/_verified_through.txt`) and the trading day before
+it (an ex-date on the anchor day only rescales earlier days); stocks whose close moved,
 or that resumed after a gap, get their full history re-fetched per stock into `_ohlcv_restated/`,
 which overrides the parts. Cost: 1 call/run + 1 per re-adjusted stock. Rejected: re-downloading
 the whole history every run (~4.4K calls/day). Deferred: raw `TaiwanStockPrice` + our own `$factor`
@@ -95,6 +96,11 @@ cached forever — frozen at the first pull — so `--sparse_max_age_days` re-fe
 pull, which with the default `--brokers` would have rewritten the 49-broker
 `broker_secid_agg.csv` with broker 1440 only. Known gap: fundamentals cover only stocks listed at
 fetch time (TaiwanStockInfo), so delisted names are missing — fix before S3 puts them in the bin.
+Proof it had already happened: `gov_bank` was requested as `TaiwanstockGovernmentBankBuySell`
+(an old FinMind typo spelling, now HTTP 422); all 4,266 May parts were failures cached as empty
+days (forensic: ~14.4 s between part mtimes = 3 retries + backoff), so the dataset was never
+collected. HTTP 4xx (except 402/429 rate limits) now fails fast with a WARN instead of silent
+retries, and a dataset whose first 5 requests all fail is skipped for the run.
 
 **D15 — Contest alphas are judged by an in-process pandas judge, not qrun + LightGBM** *(2026-10-22)*
 For AI CUP 2026 (150 fixed stocks, 20–30 long-only names, next-day VWAP fills, 0.585% round
@@ -124,6 +130,16 @@ amount/volume is a raw VWAP. The alpha panel rescales it with TWSE-direct raw cl
 price (H+L+C)/3 elsewhere; `$vwap_exact` flags rows. TODO S1 as written would have mixed scales.
 Monthly revenue becomes known on the 10th of the following month (legal deadline), not on
 FinMind's `date` (1st of that month). Revisit with S5 (collect raw `TaiwanStockPrice`).
+
+**D18 — Fundamentals refresh mirrors FinMind, deletions included; May copy archived** *(2026-10-23)*
+The first `--sparse_max_age_days` refresh found FinMind serving 474,567 fewer `fs_balance` rows
+(5.7%, 2,331 stocks) than in May. 75% of them are 2012 quarters (the ROC GAAP → IFRS switch), the
+rest scattered; every surviving value is identical. The other five fundamentals lost nothing.
+Merging the old rows back was rejected for now: 98% of the dropped quarters satisfy
+assets = liabilities + equity, but 1.6% are corrupt (Equity = TotalAssets), and the 2012 ones may
+mix accounting standards. So a refresh mirrors the source, and the May copy stays in
+`data/tw_finmind_full_clean_2026-05-backup/`. Revisit at S3: restore identity-checked quarters if
+history depth matters there.
 
 ---
 

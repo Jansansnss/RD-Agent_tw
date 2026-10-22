@@ -7,6 +7,50 @@ Benchmark series: `data/tw_finmind_full_clean/benchmark.csv` (TAIEX, TPEx, 0050)
 
 ---
 
+## Refresh 2026-10-23 — data through 2026-10-22
+
+Catch-up after 5.5 idle months (RUNBOOK §1), then one regular `daily_update.sh` run. Every file in
+`tw_finmind_full_clean/` (38 CSVs) was compared with the six months before the cut (2026-05-11).
+All fixes are in code, and the data was regenerated, never hand-edited.
+
+**Pipeline bugs found and fixed**
+
+| # | Finding | Impact | Fix |
+|---|---|---|---|
+| 1 | FinMind back-adjusts prices to the fetch date: vs the May cache, 58% of instruments had a different 2026-05-08 close (median −3.2%, range ×0.04–×3.6) | appending new days would have planted fake returns at the seam (e.g. −66% for 6669's 3:1 split on 2026-09-02) | prices rebuilt (`--refresh_ohlcv`); collector re-checks two anchor days and restates moved stocks (DECISIONS D13) |
+| 2 | `gov_bank` requested under an old dataset name (now HTTP 422); every May part was a failure cached as an empty day | the dataset had never been collected | name fixed, failures never cached (D14); backfilled: 18.4M rows, coverage from ~2021 |
+| 3 | `dump_to_bin.py` parsed instrument codes as numbers in some chunks: `006201`→`6201` | 6,353 margin rows of 9 ETFs (0062xx, 008201) collided with real stocks 6201–6208/8201 in the May bin (the "6,344 duplicates dropped") | codes read as text; new bin merges with 0 duplicates |
+| 4 | `option_daily` (~2 GB) merged in memory | OOM kill on the 11 GB WSL box; systemd silently killed the whole job | long-format merges stream to disk |
+| 5 | Cleaner's stock-file list had a stale name; `broker_secid_agg.csv` and `gov_bank.csv` skipped the universe filter | unfiltered codes | list fixed (gov_bank: −18,166 rows) |
+| 6 | Two cached empty days FinMind now serves (institutional 2012-02-29: 45 rows; block_trade 2011-09-20: 14 rows) | holes | re-fetched |
+
+**Source-side changes (not our bugs)**
+
+- `fs_balance`: FinMind now serves 474,567 fewer rows (5.7%, mostly 2012 quarters, the IFRS
+  switch). Mirrored; the May copy is in `data/tw_finmind_full_clean_2026-05-backup/` (D18). The
+  other fundamentals lost nothing and gained back history.
+- Institutional coverage varies at the source: median rows/day ~3,400 (H1 2025) → ~2,200
+  (Sep 2025–Apr 2026) → ~3,100 (Oct 2026). Re-fetching a dip day returns +0.4% codes only, so it
+  is not a stale cache. Factors on `foreign_net`/`trust_net` see a changing cross-section.
+
+**Open: 興櫃 emerging-board stocks are in the universe.** Their 4-digit codes pass the coding
+rules, but the board has no price limit and trades thinly through dealers: 390 of 3,041 bin
+instruments, ~9% of 2021+ rows, and 93% of the >10.5% daily moves in the new window. FinMind's price
+history also includes the pre-listing emerging months of stocks that listed later (e.g. 77xx/78xx
+codes moving −20% to −40% on 2025-04-07). `stock_info.csv` holds each stock's board records with
+dates, enough for a point-in-time listed-boards universe — a modelling decision, not applied.
+
+**New-window checks (2026-05-11 → 2026-10-22, 114 trading days)**: no seam at the old cache edge
+(2026-05-11 median return +0.00%, TAIEX +0.45%) · core-5 coverage ≥ the prior six months on every
+day · no duplicate keys · no NaN drift > 5 pp · 76 new listings all classified by the coding rules
+(0 dropped) · flagged values traced to real events (6669/5274 splits and rights in
+`dividend_result`; one 10,000 replacement in `loan_collateral`; 42 identical block-trade rows).
+
+**Also found**: `$amount` is written to the bin as `$amount.day.bin`, so qlib's `$amount` reads
+nothing (relevant to S1/S5).
+
+---
+
 ## Executive Summary
 
 The full FinMind collection (35 datasets, ~9 GB) is in place. Two rounds of audit identified data-quality issues and one reconstruction bug in our own pipeline. Cleaning is non-destructive: corrected files land in `tw_finmind_full_clean/`; the raw collection stays untouched. The collector itself is patched so future runs are correct from the start.

@@ -81,7 +81,8 @@ STOCK_FILES = {
     "day_trading.csv",
     "block_trade.csv",
     "loan_collateral.csv",
-    "trading_daily_report_secid_agg.csv",
+    "gov_bank.csv",
+    "broker_secid_agg.csv",
 }
 
 # Rows extracted to benchmark.csv for backtest use.

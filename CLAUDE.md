@@ -135,6 +135,10 @@ Upstream classes got overridable attributes; TW subclasses set them:
   adjusted closes fetched at different times must never be spliced. The collector's anchor
   check + `_ohlcv_restated/` handles it (D13); after a crashed or long-gap update run
   `--refresh_ohlcv`. Never hand-edit `_ohlcv_parts/_verified_through.txt`.
+- **FinMind renames datasets without notice**: the old spelling `TaiwanstockGovernmentBankBuySell`
+  now returns HTTP 422, and the May pull silently cached every failure as an empty day (D14). The
+  collector now never caches failures, fails fast on 4xx and skips a dataset after 5 straight
+  failures — after any collection run, grep its log for `WARN` and `skipping it this run`.
 - **FinMind token rotation**: tokens are non-expiring JWTs with a `token_version`; once rotated,
   every call says "Token is illegal" (anonymous calls: "Your level is free"). The collector
   preflight aborts — get a fresh token from finmindtrade.com into `.env`. Never "fix" it by
@@ -144,6 +148,14 @@ Upstream classes got overridable attributes; TW subclasses set them:
   545.3). Rescale with raw closes or don't mix them (D17).
 - **`deepseek-chat` is retired** (DeepSeek, 2026-07-24): loops on that model name fail. Use
   `deepseek-flash` or `deepseek-v4-pro`, and log the served model (J7, D16).
+- **Instrument codes are text**: read every CSV with `dtype={"instrument": str}` (and
+  `stock_id`). pandas infers dtypes per chunk, and `zfill(4)` cannot restore `006201` once it
+  became int 6201, a real stock. Until 2026-10-22 `dump_to_bin.py` did this: 6,353 margin rows of
+  9 ETFs (0062xx, 008201) collided with real stocks in the bin.
+- **WSL has ~11 GB RAM, and an OOM kills the whole tmux job**: systemd stops the entire tmux scope,
+  so `set -e`/ERR traps never run and the job just vanishes (check `dmesg`). Never `pd.concat`
+  every part of a multi-GB dataset (option_daily ≈ 2 GB of CSV); stream to disk
+  (`collect_finmind._stream_to_csv`). Don't run heavy analysis alongside `dump_to_bin`.
 
 ## Gitignore quirks to know
 

@@ -43,7 +43,9 @@ DATA_FILES = [
 def _load_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
-    df = pd.read_csv(path, parse_dates=["date"])
+    # Codes must be read as text: chunks where every code looks numeric parse as
+    # int, and zfill(4) can't restore 006201 -> it becomes 6201, a real stock.
+    df = pd.read_csv(path, parse_dates=["date"], dtype={"instrument": str})
     df["instrument"] = df["instrument"].astype(str).str.zfill(4)
     return df
 
