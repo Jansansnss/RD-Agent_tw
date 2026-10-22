@@ -17,8 +17,9 @@ instruments moved since May; D13 now checks two anchor days) · OOM kill of a 2 
 ETF codes into real stocks' margin rows in the May bin · cleaner skipped two stock files.
 
 **Decisions waiting for Jans:**
-1. **Emerging-board (興櫃) stocks in the universe**: 13% of instruments, ~9% of 2021+ rows, 93% of
-   the >10.5% daily moves; a point-in-time listed-boards universe is buildable (TODO D1 note).
+1. **Emerging-board (興櫃) stocks in the universe**: ~13% of instruments, ~9% of 2021+ rows, 93% of
+   the >10.5% daily moves. Board membership can be dated from 2024-10 via first index weight, not
+   from `stock_info` (D19, TODO D1).
 2. **Upstream v1.0.0 merge** (T6): still clean, still unmerged; follow-ups in the 2026-10-22
    snapshot below.
 3. **S5 raw `TaiwanStockPrice`**: exact VWAP, and the basis for a proper `$factor` (D13 deferred).

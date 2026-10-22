@@ -34,11 +34,13 @@ All fixes are in code, and the data was regenerated, never hand-edited.
   is not a stale cache. Factors on `foreign_net`/`trust_net` see a changing cross-section.
 
 **Open: 興櫃 emerging-board stocks are in the universe.** Their 4-digit codes pass the coding
-rules, but the board has no price limit and trades thinly through dealers: 390 of 3,041 bin
-instruments, ~9% of 2021+ rows, and 93% of the >10.5% daily moves in the new window. FinMind's price
-history also includes the pre-listing emerging months of stocks that listed later (e.g. 77xx/78xx
-codes moving −20% to −40% on 2025-04-07). `stock_info.csv` holds each stock's board records with
-dates, enough for a point-in-time listed-boards universe — a modelling decision, not applied.
+rules, but the board has no price limit and trades thinly through dealers: about 390 of 3,041 bin
+instruments by FinMind's latest `stock_info` records (which can lag a board change), ~9% of 2021+
+rows, and 93% of the >10.5% daily moves in the new window. FinMind's price history also includes
+the pre-listing emerging months of stocks that listed later (e.g. 77xx/78xx codes moving −20% to
+−40% on 2025-04-07). `stock_info.csv` dates are record dates, not board-change dates, so they
+can't date listings; the first `market_value_weight.csv` row can, from 2024-10-30 (D19).
+Filtering is a modelling decision, not applied.
 
 **New-window checks (2026-05-11 → 2026-10-22, 114 trading days)**: no seam at the old cache edge
 (2026-05-11 median return +0.00%, TAIEX +0.45%) · core-5 coverage ≥ the prior six months on every

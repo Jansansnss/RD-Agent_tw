@@ -209,9 +209,9 @@ PROJECT_STATE.
 Rules live in `data/DATA_AUDIT_REPORT.md`. Fixes go into **collector + cleaner, never hand-edit
 data files** (D2 in DECISIONS). Re-run clean→bin→H5 → back to **G1**.
 - 2026-10-23: open universe question for Jans: 興櫃 emerging-board stocks (no price limit, thin
-  trading) are 390 of 3,041 bin instruments and cause 93% of the >10.5% daily moves. FinMind
-  prices also include the pre-listing emerging months of later-listed stocks. A point-in-time
-  listed-boards universe is buildable from `stock_info.csv` board records (DATA_AUDIT_REPORT).
+  trading) are ~390 of 3,041 bin instruments by latest `stock_info` records and cause 93% of the
+  >10.5% daily moves. FinMind prices also include the pre-listing emerging months of
+  later-listed stocks. For dating board membership, see the next note (not `stock_info`).
 - 2026-10-23 (alpha factory): careful — `stock_info.csv` board records carry FinMind's record
   date, not the change date (7769 listed Jan 2026 but stays "emerging" until the 2026-10-22
   record; 6472 on TWSE since ≤ 2024-10 but recorded TPEx). First appearance in
