@@ -3,6 +3,27 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-22 (evening): alpha factory for AI CUP 2026
+
+**New line of work:** RD-Agent becomes the offline alpha lab for the AI CUP 2026 ETF-agent contest
+(design: `docs/tw/ALPHA_FACTORY.md`; TODO line T7–T10; DECISIONS D15–D17). Step 1 is built:
+`tw_data/dump_alpha_panel_tw.py` (point-in-time 150-stock universe, VWAP, revenue known on the
+10th → `data/alpha_tw/`) and `tw_data/alpha_eval_tw.py` (fast judge + gate; smoke test 15/15).
+First panel from the May clean data (301 stocks, to 2026-05-08); its May selection already matches
+141/150 of the official list. First verdict on the v2 hypotheses: none passes the strict gate;
+revenue acceleration is positive in both windows; momentum flipped from slightly negative
+(2021 to mid-2025) to very strong (holdout, book beta 1.7); 投信 flow shows nothing.
+
+**LLM model name is dead:** DeepSeek retired `deepseek-chat`/`deepseek-reasoner` on 2026-07-24.
+This file records the loop on `deepseek/deepseek-chat`, so any loop now fails until `CHAT_MODEL`
+moves to `deepseek-flash` (V4.1, follows the latest model) or `deepseek-v4-pro` (jump rule J7).
+
+**VWAP finding:** `ohlcv.csv` prices are back-adjusted but `$amount`/`$volume` are raw, so the
+planned "real VWAP = amount/volume" (S1) would mix scales. Exact VWAP needs raw closes (S5, D17).
+
+**Data refresh:** the catch-up (RUNBOOK §1, phase 1) is running and downloading, so the FinMind
+token works again; rebuild the alpha panel after phase 2 (revenue).
+
 ## Snapshot — 2026-10-22
 
 **Data is still stale** (qlib calendar ends 2026-05-08). The refresh is blocked on D3: FinMind
@@ -68,8 +89,8 @@ left by that session had blocked the commit).
 1. **Refresh data & resume factor loop** on the full universe (refresh blocked on D3 as of
    2026-10-22); harvest/aggregate results from `log/` sessions into a findings doc (which
    factors reached SOTA, IC stats).
-2. **Real VWAP**: `ohlcv.csv` carries `$amount`; compute VWAP = amount/volume in `dump_to_bin.py`
-   instead of the OHLC4 proxy (follow-up noted in `collect_finmind.py` docstring).
+2. **Real VWAP**: `ohlcv.csv` carries `$amount`, but amount/volume is a raw VWAP against
+   back-adjusted prices; collect raw `TaiwanStockPrice` first (TODO S5, D17).
 3. **Fundamentals into bin**: pivot curated `type` values from long-format `fs_income/balance/
    cashflow.csv` into bin features; month_revenue/dividend already merge sparse.
 4. **Corporate-action `$factor`** for the TWSE-direct collector (currently 1.0; FinMind's
@@ -87,7 +108,8 @@ left by that session had blocked the commit).
 - Windows + WSL2; repo at `G:\Github\RD-Agent` = `/mnt/g/Github/RD-Agent` in WSL.
 - Conda env `rdagent` (miniconda3), Python 3.10, pyqlib 0.9.7, CPU-only torch; Docker available
   for qrun.
-- LLM: LiteLLM proxy → `deepseek/deepseek-chat`; keys + `FINMIND_TOKEN_API_KEY` in untracked
+- LLM: LiteLLM proxy → `deepseek/deepseek-chat` (**retired by DeepSeek 2026-07-24** — switch to
+  `deepseek-flash` or `deepseek-v4-pro` before any loop, J7); keys + `FINMIND_TOKEN_API_KEY` in untracked
   `.env`. FinMind tier: Backer/Sponsor (affects collector request strategy); the token in `.env`
   was rejected on 2026-10-22.
 - WSL2 has ~11 GB RAM; the OHLCV merge (~8M rows) peaks at a few GB.

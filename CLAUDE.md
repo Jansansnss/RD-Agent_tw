@@ -22,6 +22,7 @@ Deeper docs (keep them current):
 | `docs/tw/RUNBOOK.md` | How to run everything (data pipeline, loops, smoke tests). |
 | `docs/tw/AGENT_PLAYBOOK.md` | Team design for model sessions: roles, model routing, context budgets, comms protocol. |
 | `docs/tw/TODO_GRAPH.md` | Executable branching roadmap (gates, retry ladders, jump rules). **Pick work from here; move markers.** |
+| `docs/tw/ALPHA_FACTORY.md` | AI CUP 2026 alpha factory: contest-aligned panel, fast judge + gate, LLM look-ahead protocol, tournament notes. |
 | `data/DATA_AUDIT_REPORT.md` | Data-quality audit of the FinMind collection; cleaning rules rationale. |
 | `rdagent/scenarios/qlib/tw_data/MODEL_SMOKE_RESULTS.md` | Which qlib models pass plumbing on TW data. |
 
@@ -73,6 +74,9 @@ dump_factor_h5.py   → git_ignore_folder/factor_implementation_source_data/dail
   the primary source; keep `collect.py` schema-compatible as fallback.
 - Smoke/verify helpers: `_verify_bin.py`, `_inspect.py`, `_smoke_qlib.py`, `_smoke_qrun_tw.py`,
   `_smoke_models_tw.py`.
+- Alpha factory (AI CUP 2026, `docs/tw/ALPHA_FACTORY.md`): `dump_alpha_panel_tw.py` reads the clean
+  CSVs → `data/alpha_tw/alpha_panel.h5` (point-in-time 150-stock universe); `alpha_eval_tw.py`
+  judges alphas on it (pandas only, no qlib); `_smoke_alpha_eval_tw.py` checks both.
 
 ### R&D loops
 
@@ -135,6 +139,11 @@ Upstream classes got overridable attributes; TW subclasses set them:
   every call says "Token is illegal" (anonymous calls: "Your level is free"). The collector
   preflight aborts — get a fresh token from finmindtrade.com into `.env`. Never "fix" it by
   dropping to per-stock/free mode: `TaiwanStockPriceAdj` and by-date mode are Sponsor-only.
+- **Adjusted prices, raw amounts**: in `ohlcv.csv` the prices are back-adjusted but `$amount` and
+  `$volume` are raw, so `amount/volume` is a raw VWAP (2330, 2021-06-01: 596.9 vs adjusted close
+  545.3). Rescale with raw closes or don't mix them (D17).
+- **`deepseek-chat` is retired** (DeepSeek, 2026-07-24): loops on that model name fail. Use
+  `deepseek-flash` or `deepseek-v4-pro`, and log the served model (J7, D16).
 
 ## Gitignore quirks to know
 

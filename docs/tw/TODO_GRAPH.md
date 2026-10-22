@@ -22,6 +22,9 @@ renumber.
 - **J5** Loops (T2/T4) are blocked unless Jans has approved the LLM spend this session (CLAUDE.md
   rule 5). No gate overrides this.
 - **J6** Upstream security/bugfix urgently needed → T6 out of band.
+- **J7** Before any loop launch (T2/T4/T9): `CHAT_MODEL` must not be `deepseek-chat` or
+  `deepseek-reasoner` (retired 2026-07-24; use `deepseek/deepseek-flash` or
+  `deepseek/deepseek-v4-pro`), and the served model string must be logged (DECISIONS D16) → else D0.
 
 ## Main line
 
@@ -89,6 +92,9 @@ T2. Exit: harvest results → append FINDINGS → PM decides combined-SOTA next 
 ### `[ ]` S1 · Real VWAP — Implementer (Sonnet)
 `ohlcv.csv` has `$amount`; compute VWAP=amount/volume in `dump_to_bin.py` (replace OHLC4 proxy).
 Exit: **J4 forced** (bin+H5 regen, G1).
+- 2026-10-22: **do not implement as written.** `$amount`/`$volume` are raw while `ohlcv.csv`
+  prices are back-adjusted, so amount/volume is off by the adjustment factor (2330 on
+  2021-06-01: 596.9 vs adjusted close 545.3). Needs raw closes → S5 (DECISIONS D17).
 
 ### `[ ]` S2 · Model-sweep fixes — Implementer (Sonnet)
 Fix kwarg mismatches (CatBoost/DEnsemble/MLP) in `_smoke_models_tw.py`; retest ts-models on full
@@ -100,6 +106,62 @@ Pivot curated `type` values from long-format `fs_*.csv` into bin features. Exit:
 ### `[ ]` S4 · Broker/news alt-data — entry: only if Jans prioritizes — `risky`
 Productionize the exploratory pulls (`data/_brokers_pull_*.log`, `_news_download.log`) into
 collector datasets + cleaning rules + DECISIONS entry.
+
+## Alpha factory line (AI CUP 2026)
+
+Design: `docs/tw/ALPHA_FACTORY.md`. Runs beside the main line; contest dates bind (freeze 10/23,
+contest 10/27–11/27, v1.1 on 11/2). RD-Agent never enters the contest's daily path.
+
+### `[~]` T7 · Alpha panel + fast judge — Implementer
+`tw_data/dump_alpha_panel_tw.py` (point-in-time 150 universe, VWAP, revenue known on the 10th) +
+`tw_data/alpha_eval_tw.py` (RankIC, top-24 book with contest costs, 24-day windows, gate).
+- 2026-10-22: built; `_smoke_alpha_eval_tw` 15/15. First panel from the May clean data: 301
+  stocks, 2019-01 → 2026-05-08, exact VWAP on 65% of universe rows; the May selection already
+  matches 141/150 of the official list. Remaining: rebuild after the catch-up (phase 1 clean +
+  phase 2 revenue) with `--raw_ohlcv` and `--official_list`; check overlap at 2026-07-31.
+
+### `[~]` G3 · v2 hypotheses verdict — PM
+Run the baselines on research + holdout; hand results to the contest team (they own v2's gates).
+- 2026-10-22 (May data): none passes the strict gate; `rev_accel` positive in both windows;
+  momentum negative before mid-2025, strong after (beta 1.7); 投信 flow unsupported. Table in
+  ALPHA_FACTORY §6. Redo on the refreshed panel → `[x]`.
+
+### `[ ]` T8 · Judge into the loop — `risky` — Architect then Implementer
+New `alpha_tw` loop: scenario text (contest rules, pods, panel fields; no tickers/dates), runner
+subclass calling `evaluate()` instead of qrun (no Docker), feedback subclass with `gate()` in code,
+alpha-card writer, reject check for stock-code/date literals, entry `app/qlib_rd_loop/alpha_tw.py`
++ `AlphaTwBasePropSetting` (prefix `QLIB_ALPHA_TW_`). Decide T6 first. Exit: canary `--loop_n 1`
+(needs J5, J7).
+
+### `[ ]` T9 · Alpha campaign — Jans launches; PM steers per pod
+Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
+
+### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
+Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None
+pass → keep the library for Demo Day; v1.1 ships without new alphas.
+
+### `[ ]` T10 · Export alpha cards — Implementer + contest team
+Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new
+`code_version`; only fields with a live source.
+
+### `[ ]` S5 · Raw `TaiwanStockPrice` → exact VWAP — `risky` (collector)
+Collect raw daily prices (by date, ~4.4K calls) so VWAP is exact everywhere and FinMind's adjusted
+prices can be rebuilt with our own `$factor` (DECISIONS D13 deferred, D17). Supersedes S1.
+
+### `[ ]` S6 · Tournament rules → contest ranking module — Jans + team
+Port ALPHA_FACTORY §8 (cover when ahead, separate when behind; beta is a market bet) into the
+v2 plan and the ranking module.
+
+```mermaid
+flowchart TD
+    T7[T7 panel + judge] --> G3{G3 v2 verdict}
+    T7 --> T8[T8 judge into loop]
+    T8 -->|J5 + J7| T9[T9 alpha campaign]
+    T9 --> G4{G4 export gate 10/30}
+    G4 -->|pass| T10[T10 alpha cards → v1.1]
+    G4 -->|none| DD[Demo Day material]
+    S5[S5 raw prices] -.-> T7
+```
 
 ## Maintenance
 
@@ -121,6 +183,10 @@ PROJECT_STATE.
 ### D0 · LLM/env health — Scout → Implementer if code
 `rdagent health_check` · proxy up? keys valid? · remember pitfalls: embeddings need
 `encoding_format="float"`; `CHAT_STREAM=false`. Exit → return to caller node.
+- 2026-10-22: DeepSeek retired `deepseek-chat`/`deepseek-reasoner` on 2026-07-24 (announced
+  2026-04-24; they mapped to V4-Flash until then). PROJECT_STATE records the loop on
+  `deepseek/deepseek-chat`, so the next loop will fail until Jans switches `CHAT_MODEL` (and any
+  LiteLLM map) to `deepseek-flash` or `deepseek-v4-pro`. `deepseek-flash` follows the latest model.
 
 ### D1 · Data quality — Scout diagnoses → Implementer fixes
 Rules live in `data/DATA_AUDIT_REPORT.md`. Fixes go into **collector + cleaner, never hand-edit

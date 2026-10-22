@@ -22,7 +22,8 @@ multiple processes.
 | **Jans (human)** | — | — | everything on the real machine: run loops/smokes, git push, spend approval, API keys, `factor_ideas.md` | the only member who spends money or touches production |
 
 **Not a team member but a contractor:** the RD-loop's inner LLM (hypothesis-gen + factor/model
-coding at hundreds of calls per session) stays `deepseek-chat` via LiteLLM — chosen for cost
+coding at hundreds of calls per session) stays DeepSeek via LiteLLM (`deepseek-flash`; the old
+`deepseek-chat` name was retired 2026-07-24, see J7) — chosen for cost
 (D12). Optional experiment: route only hypothesis-gen to a stronger model via `LITELLM_CHAT_MODEL_MAP`
 and measure IC delta vs. cost. Needs Jans's spend approval.
 
@@ -34,7 +35,7 @@ and measure IC delta vs. cost. Needs Jans's spend approval.
 | Architecture, merge-conflict strategy, "impossible" bugs | Opus 4.8 | deepest reasoning; used sparingly |
 | Scoped implementation, tests, code review | Sonnet 5 | best capability/cost for competent coding |
 | Search, log triage, summarization, doc upkeep | Haiku 4.5 | cheap, fast, disposable, parallel |
-| Inner R&D loop (bulk generation) | deepseek-chat | volume pricing; already wired |
+| Inner R&D loop (bulk generation) | DeepSeek (`deepseek-flash`) | volume pricing; already wired |
 
 **Escalation ladder:** two failed tries at one tier → escalate one tier with a *written summary of
 what failed* (not the raw transcript). Ambiguity about *intent* escalates to the PM/user, never to

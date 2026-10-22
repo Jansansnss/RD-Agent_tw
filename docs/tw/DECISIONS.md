@@ -96,6 +96,35 @@ pull, which with the default `--brokers` would have rewritten the 49-broker
 `broker_secid_agg.csv` with broker 1440 only. Known gap: fundamentals cover only stocks listed at
 fetch time (TaiwanStockInfo), so delisted names are missing — fix before S3 puts them in the bin.
 
+**D15 — Contest alphas are judged by an in-process pandas judge, not qrun + LightGBM** *(2026-10-22)*
+For AI CUP 2026 (150 fixed stocks, 20–30 long-only names, next-day VWAP fills, 0.585% round
+trip), the factor loop's qrun template cannot tell whether an alpha helps: `market: all`, a top-3
+book, close fills, next-day label, 2330 benchmark, and the LLM picking SOTA from test-period
+metrics. `alpha_eval_tw.py` scores in seconds on a point-in-time universe (monthly top 100 TWSE +
+50 TPEx; the fixed July-2026 list would flatter momentum) and gates in code: IC t ≥ 3 at the
+declared horizon, ≥ 3 positive years, 24-day median net excess > 0, |corr| ≤ 0.6 with the library,
+coverage ≥ 80%. New TODO line T7–T10, G3–G4, S5–S6 and jump rule J7. Revisit if the contest
+rules change or a model-combination step needs qrun again.
+
+**D16 — LLM look-ahead protocol for the alpha factory** *(2026-10-22)*
+Research window 2021-01-01 → 2025-06-30, because DeepSeek V4's training data reaches
+"approximately no later than May 2025" (DeepSeek's EU training summary). Holdout 2025-07-01 →
+today is scored only by a script outside the loop, once per batch that passed the gate, and never
+shown to the LLM. Prompts carry no tickers, names or dates; alpha code with stock-code or date
+literals is rejected; the served model string is logged per run. Anonymizing alone is not enough:
+LLMs rebuild names and dates from small clues (Lopez-Lira, Tang & Zhu 2025), and the main leak
+here is hindsight about which styles won. `deepseek-flash` follows DeepSeek's latest model, so a
+newer model with a later cutoff moves the boundary. The live contest is the only fully clean test.
+Revisit when a point-in-time LLM (training cutoff before the research window) is affordable.
+
+**D17 — VWAP from raw closes where we have them; revenue known on the 10th** *(2026-10-22)*
+`ohlcv.csv` prices are back-adjusted (TaiwanStockPriceAdj) but `$amount`/`$volume` are raw, so
+amount/volume is a raw VWAP. The alpha panel rescales it with TWSE-direct raw closes
+(`data/tw_raw_full/ohlcv.csv`: TWSE only, to 2026-05-05) and falls back to the adjusted typical
+price (H+L+C)/3 elsewhere; `$vwap_exact` flags rows. TODO S1 as written would have mixed scales.
+Monthly revenue becomes known on the 10th of the following month (legal deadline), not on
+FinMind's `date` (1st of that month). Revisit with S5 (collect raw `TaiwanStockPrice`).
+
 ---
 
 *Template for new entries:*
