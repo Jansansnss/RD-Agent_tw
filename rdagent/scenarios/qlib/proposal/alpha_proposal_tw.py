@@ -17,6 +17,7 @@ from rdagent.scenarios.qlib.proposal.factor_proposal import (
 )
 
 FIRST_ROUND = "No previous hypothesis and feedback available since it's the first round."
+RECENT_TRIALS = 10  # in full; older trials shrink to one line per factor, so long campaigns stay cheap
 
 
 def _trial(i: int, exp, feedback, last: bool = False) -> str:
@@ -41,11 +42,32 @@ def _trial(i: int, exp, feedback, last: bool = False) -> str:
     return "\n".join(lines)
 
 
+def _brief(i: int, exp) -> list[str]:
+    rows = (exp.result or {}).get("factors", []) if isinstance(exp.result, dict) else []
+    if not rows:
+        return [f"- trial {i}: no factor produced values"]
+    out = []
+    for r in rows:
+        m = r.get("metrics") or {}
+        why = "PASS" if r["passed"] else (r["reasons"][0] if r["reasons"] else "fail")
+        nums = f"t5 {m['ic_t']['5']:+.1f}, max library corr {m['max_library_corr']:.2f}; " if m else ""
+        out.append(f"- trial {i} {r['factor']}: {nums}{why}")
+    return out
+
+
 def alpha_history(trace: Trace) -> str:
     if not trace.hist:
         return FIRST_ROUND
+    cut = max(0, len(trace.hist) - RECENT_TRIALS)
+    parts = []
+    if cut:
+        lines = [f"# Trials 1-{cut} in brief (research period; one line per factor):"]
+        for i, (exp, _) in enumerate(trace.hist[:cut]):
+            lines += _brief(i + 1, exp)
+        parts.append("\n".join(lines))
+    parts += [_trial(i + 1, exp, fb) for i, (exp, fb) in enumerate(trace.hist) if i >= cut]
     sep = "\n=========================================================\n"
-    return sep.join(_trial(i + 1, exp, fb) for i, (exp, fb) in enumerate(trace.hist))
+    return sep.join(parts)
 
 
 def last_trial(trace: Trace) -> str:

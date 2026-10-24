@@ -174,6 +174,11 @@ Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
   composites. `RevAccel_x_DivYield_50_50` had the campaign's best research t (5.25 at 5 days) but
   correlation 0.63 with both the accepted card and `traded_rev_accel`. Totals: 30 proposed, 29
   judged, 1 pass, 0 confirmed; ~$0.58 for the 10 rounds (~$0.63 with the crash and the stall).
+- 2026-10-25 03:36: flash campaign (Jans: every step on `deepseek-flash`, run until the balance is
+  gone; $1.92 at the start). Continues the 10-round session into `log/alpha_tw_flash_20261025`
+  (`--checkout_path`), with `CHAT_MODEL`/`LITELLM_CHAT_MODEL` set to `deepseek/deepseek-flash` and
+  an empty `*_CHAT_MODEL_MAP` exported after `.env`. The proposal history now keeps the last 10
+  trials in full and older ones as one line per factor, so a long run's prompts stay bounded.
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None

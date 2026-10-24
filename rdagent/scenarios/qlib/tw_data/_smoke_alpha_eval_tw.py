@@ -186,6 +186,10 @@ def main() -> None:
         results.append(check("proposal history from judge rows",
                              "a: PASS at 5d" in text and "b: fail; the code contains a date" in text
                              and "no factor produced values" in last and "New Hypothesis" in last))
+        long_text = alpha_history(SimpleNamespace(hist=[(exp, fb)] * 12))
+        results.append(check("old trials shrink to one line per factor",
+                             long_text.count("# Trial ") == 10 and "trial 2 a: t5 +3.4" in long_text
+                             and "trial 2 b: the code contains a date" in long_text))
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):
