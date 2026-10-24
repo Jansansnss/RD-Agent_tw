@@ -3,7 +3,7 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
-## Snapshot — 2026-10-24 (afternoon): split moved; first campaign ran 8 of 10 rounds
+## Snapshot — 2026-10-24 (evening): split moved; first 10-round campaign done
 
 **Split (D21):** research 2021-01 → 2026-04-30, holdout 2026-05-01 → latest (117 trading days to
 10-22), set once in `alpha_eval_tw.WINDOWS`. Both revenue baselines now pass the research gate at
@@ -13,9 +13,11 @@ holdout t above 2.5), but it agrees with the agent's 9/1–10/22 paper run (−8
 
 **Library seeded (D22)** with `traded_rev_accel`, `traded_rev_yoy`, `traded_mom60_skip5`.
 
-**Campaign (T9):** rounds 0–7 in 34 minutes for ~$0.46, then the DeepSeek account ran out of
-balance. 1 research pass (value + revenue acceleration), not confirmed on the holdout (G4). The
-first launch had crashed entering round 2; fixed in `proposal/alpha_proposal_tw.py` (smoke 21/21).
+**Campaign (T9):** 10 rounds in ~39 minutes for ~$0.58 (rounds 8–9 after a balance top-up). 30
+factors, 1 research pass (value + revenue acceleration), not confirmed on the holdout (G4). The
+best research t (5.25, dividend yield + revenue acceleration) was blocked by correlation 0.63, so
+a "replaces a library card" rule is the next decision (D22 revisit). The first launch had crashed
+entering round 2; fixed in `proposal/alpha_proposal_tw.py` (smoke 21/21).
 Report for Jans and the team: Claude Doc "RD-Agent 因子研究十輪試跑報告".
 
 ## Snapshot — 2026-10-24: alpha loop wired; contest agent built

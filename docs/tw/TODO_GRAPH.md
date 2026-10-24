@@ -167,8 +167,13 @@ Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
   `EarningsRevision_x_Cheapness_30_70` (0.7 × rank of 1/PE + 0.3 × rank of `$rev_accel`; t 3.91 at
   5 days, max seed correlation 0.18). Chips (10 factors) all failed; 3 revenue variants were
   blocked by the seeds (correlation 0.72–0.81). Report: Claude Doc "RD-Agent 因子研究十輪試跑報告".
-  Resume after a top-up: `alpha_tw.py --path log/alpha_tw_r10_20261024_1151/__session__/7/4_record
-  --loop_n 2` (`loop_n` counts remaining rounds).
+  Resumed after Jans's top-up (20:58) with `alpha_tw.py --path
+  log/alpha_tw_r10_20261024_1151/__session__/7/4_record --loop_n 10`: on a resume `loop_n` counts
+  the finished rounds too, and a first try with `--loop_n 2` ran nothing (CLAUDE.md pitfall).
+  Rounds 8–9 (5.6 min, $0.15) built on the accepted card: 4 of 5 were rev_accel × value/low-vol
+  composites. `RevAccel_x_DivYield_50_50` had the campaign's best research t (5.25 at 5 days) but
+  correlation 0.63 with both the accepted card and `traded_rev_accel`. Totals: 30 proposed, 29
+  judged, 1 pass, 0 confirmed; ~$0.58 for the 10 rounds (~$0.63 with the crash and the stall).
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None

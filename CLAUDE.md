@@ -169,6 +169,10 @@ Upstream classes got overridable attributes; TW subclasses set them:
   `exp.result.loc[...]`. A runner whose `exp.result` is anything else needs its own history
   rendering (`proposal/alpha_proposal_tw.py`), or round 2 crashes with jinja2 `'dict object' has no
   attribute 'loc'`. A one-round canary never reaches that code (first 10-round run, 2026-10-24).
+- **Resuming a loop: `--loop_n` is the total, not the remainder.** `LoopBase.run()` restarts
+  `loop_idx` at 0 and each finished round uses up one count, so `--path <session>/7/4_record
+  --loop_n 2` runs nothing; for rounds 8 and 9 pass `--loop_n 10`. With `checkout` (the default in
+  `alpha_tw.py`) the resume deletes the logs of every step after the loaded one.
 - **Instrument codes are text**: read every CSV with `dtype={"instrument": str}` (and
   `stock_id`). pandas infers dtypes per chunk, and `zfill(4)` cannot restore `006201` once it
   became int 6201, a real stock. Until 2026-10-22 `dump_to_bin.py` did this: 6,353 margin rows of
