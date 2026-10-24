@@ -3,7 +3,7 @@ TW alpha factory loop (AI CUP 2026): RD-Agent proposes and codes factors, the fi
 (tw_data/alpha_eval_tw) scores them on the anonymized research panel, passing factors go to
 data/alpha_tw/library/. Design: docs/tw/ALPHA_FACTORY.md. Costs LLM money (CLAUDE.md rule 5).
 
-Usage (WSL, conda env rdagent, .env loaded; CHAT_MODEL must not be deepseek-chat, TODO J7):
+Usage (WSL, `conda activate rdagent`, .env loaded; prefer deepseek-flash, deepseek-chat is deprecated, J7):
     python rdagent/app/qlib_rd_loop/alpha_tw.py --loop_n 1                  # canary
     python rdagent/app/qlib_rd_loop/alpha_tw.py --path log/<session>/__session__/<loop>/<step>   # resume
 """

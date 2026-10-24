@@ -144,14 +144,15 @@ def main() -> None:
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmp:
-        idx = pd.MultiIndex.from_product([pd.to_datetime(["2025-06-30", "2025-07-01"]), ["2330", "2454"]],
+        research_end = pd.Timestamp(dp.RESEARCH_END)
+        idx = pd.MultiIndex.from_product([[research_end, research_end + pd.Timedelta(days=1)], ["2330", "2454"]],
                                          names=["datetime", "instrument"])
         tiny = pd.DataFrame({"$close": [1.0, 2.0, 3.0, 4.0], "$in_official": 1.0, "$vwap_exact": 1.0}, index=idx)
         dp.write_coder_data(tiny, Path(tmp))
         coder = pd.read_hdf(Path(tmp) / "coder" / "daily_pv.h5", key="data")
         full = pd.read_hdf(Path(tmp) / "coder_full" / "daily_pv.h5", key="data")
     ok = (set(coder.index.get_level_values("instrument")) == {"S001", "S002"}
-          and coder.index.get_level_values("datetime").max() == pd.Timestamp("2025-06-30")
+          and coder.index.get_level_values("datetime").max() == research_end
           and len(full) == 4 and "$in_official" not in coder.columns)
     results.append(check("coder data anonymized and cut at the research end", ok))
 
@@ -164,6 +165,27 @@ def main() -> None:
         bad = literal_problems("x = df.xs('2330', level=1); y = df.loc['2024-01-02']; z = df.xs(\"S012\", level=1)")
         clean = literal_problems("df.groupby(level='instrument')['$close'].pct_change(20)")
         results.append(check("literal check", len(bad) == 3 and not clean, str(bad)))
+
+    # 11. Round 2 onward: the proposal history prints the judge's dict result (upstream templates
+    #     call exp.result.loc[...] and crashed the first 10-round run, 2026-10-24).
+    try:
+        from types import SimpleNamespace
+
+        from rdagent.scenarios.qlib.proposal.alpha_proposal_tw import alpha_history, last_trial
+    except ImportError as err:
+        print(f"[skip] proposal history: {err}")
+    else:
+        metrics = {"ic": {"5": 0.03}, "ic_t": {"5": 3.4}, "windows_24d": {"median": 0.01},
+                   "book_beta": 1.1, "max_library_corr": 0.2}
+        rows = [{"factor": "a", "passed": True, "horizon": 5, "reasons": [], "metrics": metrics},
+                {"factor": "b", "passed": False, "horizon": None, "reasons": ["the code contains a date"], "metrics": None}]
+        exp = SimpleNamespace(hypothesis="h", sub_tasks=[], result={"factors": rows, "library_size": 3})
+        fb = SimpleNamespace(observations="o", hypothesis_evaluation="e", decision=True, new_hypothesis="n", reason="r")
+        trace = SimpleNamespace(hist=[(exp, fb), (SimpleNamespace(hypothesis="h2", sub_tasks=[], result=None), fb)])
+        text, last = alpha_history(trace), last_trial(trace)
+        results.append(check("proposal history from judge rows",
+                             "a: PASS at 5d" in text and "b: fail; the code contains a date" in text
+                             and "no factor produced values" in last and "New Hypothesis" in last))
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):

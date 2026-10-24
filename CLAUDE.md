@@ -90,8 +90,12 @@ dump_factor_h5.py   → git_ignore_folder/factor_implementation_source_data/dail
 The alpha loop needs no Docker: its runner (`developer/alpha_runner_tw.py`) scores factors with
 `tw_data/alpha_eval_tw.py` on `data/alpha_tw/coder/` (anonymized IDs, research window only) and
 its feedback (`developer/alpha_feedback_tw.py`) gates in code and writes `data/alpha_tw/library/`.
-Its idea file is `data/alpha_ideas.md` (local-only, like `factor_ideas.md`; research-period
-numbers only). Holdout check: `tw_data/alpha_holdout_tw.py`, never inside the loop.
+Its proposal (`proposal/alpha_proposal_tw.py`) writes the trace history from the judge's verdicts.
+The library starts with the three signals the contest agent trades (`library/traded_*`,
+correlation references only, D22). Its idea file is `data/alpha_ideas.md` (local-only, like
+`factor_ideas.md`; research-period numbers only). Its research/holdout split is
+`alpha_eval_tw.WINDOWS` (D21), not the date window below. Holdout check:
+`tw_data/alpha_holdout_tw.py`, never inside the loop.
 
 Date window (all TW settings): train 2021-01-01..2023-12-31, valid 2024, test 2025-01-01..rolling
 `test_end`. `test_end` MUST stay ≤ (qlib calendar end − 1 trading day) — see pitfalls.
@@ -161,6 +165,10 @@ Upstream classes got overridable attributes; TW subclasses set them:
   needs the training cutoff). Prefer `deepseek-flash` or `deepseek-v4-pro`; log the served model (J7).
 - **Run the alpha loop with `conda activate rdagent`**, not the env's python by path: the CoSTEER
   coder reads `CONDA_DEFAULT_ENV` to pick the env for factor code, and fails without it.
+- **Upstream proposal templates assume a qrun result**: `hypothesis_and_feedback` prints
+  `exp.result.loc[...]`. A runner whose `exp.result` is anything else needs its own history
+  rendering (`proposal/alpha_proposal_tw.py`), or round 2 crashes with jinja2 `'dict object' has no
+  attribute 'loc'`. A one-round canary never reaches that code (first 10-round run, 2026-10-24).
 - **Instrument codes are text**: read every CSV with `dtype={"instrument": str}` (and
   `stock_id`). pandas infers dtypes per chunk, and `zfill(4)` cannot restore `006201` once it
   became int 6201, a real stock. Until 2026-10-22 `dump_to_bin.py` did this: 6,353 margin rows of

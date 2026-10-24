@@ -3,7 +3,7 @@ Holdout check for the alpha library (TODO G4, DECISIONS D16). Never part of the 
 must not reach an LLM prompt.
 
 Each library card's factor.py runs on the anonymized full panel (data/alpha_tw/coder_full, all
-dates), then alpha_eval_tw scores the holdout window (2025-07-01 on) with the confirmation gate.
+dates), then alpha_eval_tw scores the holdout window (2026-05-01 on) with the confirmation gate.
 
     python -m rdagent.scenarios.qlib.tw_data.alpha_holdout_tw
 """

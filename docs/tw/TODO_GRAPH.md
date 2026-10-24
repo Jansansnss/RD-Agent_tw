@@ -159,11 +159,23 @@ alpha-card writer, reject check for stock-code/date literals, entry `app/qlib_rd
 
 ### `[ ]` T9 · Alpha campaign — Jans launches; PM steers per pod
 Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
-- 2026-10-24: waiting for Jans to set the number of rounds (~4 min and ~$0.03 per round).
+- 2026-10-24: Jans asked for 10 rounds on the new split (D21), library seeded with the traded
+  signals (D22). The first launch crashed entering round 2 (upstream history template; fixed by
+  `proposal/alpha_proposal_tw.py`, smoke check 11). The relaunch ran rounds 0–7 in 34 min, 180
+  calls, ~$0.46 by LiteLLM (per round $0.03 → $0.08 as the history grows), then DeepSeek answered
+  "Insufficient Balance" in round 8. 25 factors proposed, 24 judged, 1 passed:
+  `EarningsRevision_x_Cheapness_30_70` (0.7 × rank of 1/PE + 0.3 × rank of `$rev_accel`; t 3.91 at
+  5 days, max seed correlation 0.18). Chips (10 factors) all failed; 3 revenue variants were
+  blocked by the seeds (correlation 0.72–0.81). Report: Claude Doc "RD-Agent 因子研究十輪試跑報告".
+  Resume after a top-up: `alpha_tw.py --path log/alpha_tw_r10_20261024_1151/__session__/7/4_record
+  --loop_n 2` (`loop_n` counts remaining rounds).
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None
 pass → keep the library for Demo Day; v1.1 ships without new alphas.
+- 2026-10-24: first candidate not confirmed: `EarningsRevision_x_Cheapness_30_70` holdout t 1.3 at
+  5 days (< 2). Its top-24 book still beat B0 by +30.6%/yr on the holdout, but with beta 0.49 and
+  mostly in the July drop; plain 1/PE did better. Kept in the library, not exported.
 
 ### `[ ]` T10 · Export alpha cards — Implementer + contest team
 Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new

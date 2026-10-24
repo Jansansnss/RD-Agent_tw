@@ -168,6 +168,28 @@ runs only in `alpha_holdout_tw.py`. Research scope is any factor that could win 
 prospectus theme rule. Coder repair rounds default to 6 (cost). Revisit after the canary measures
 cost per round.
 
+**D21 — Alpha split moved: research to 2026-04-30, holdout from 2026-05-01** *(2026-10-24)*
+Jans asked for both windows to move to recent data. Research is now 2021-01-01 → 2026-04-30 and the
+holdout 2026-05-01 → latest (2026-05-04 → 2026-10-22, about 117 trading days); the coder's quick-run
+slice is 2025-05 → 2026-04. Why: the old research window ended 16 months before the contest and
+missed the 2025–26 market; the holdout still starts a year after DeepSeek V4's data (~May 2025), so
+D16's clean-window rule holds better than before. Cost: six months confirm with less power
+(HOLDOUT_GATE t ≥ 2 unchanged), and the baselines' new holdout is not virgin (their old holdout
+covered it). Effect: `rev_accel` and `rev_yoy` now pass the research gate at 5 days (t 3.5, 3.1),
+while on the new holdout all three traded signals lose (ALPHA_FACTORY §6). The split lives once,
+in `alpha_eval_tw.WINDOWS`; `dump_alpha_panel_tw.RESEARCH_END` reads it. Revisit if the served
+model's training data reaches past 2026-04, and before the last pre-contest refresh.
+
+**D22 — Alpha library seeded with the three traded signals** *(2026-10-24)*
+`data/alpha_tw/library/traded_{rev_accel,rev_yoy,mom60_skip5}/values.parquet`, computed with
+`alpha_eval_tw.BASELINES` on the anonymized research panel, no `card.json`: the loop's correlation
+rule (≤ 0.6) now rejects copies of what the daily agent already trades, and the holdout script and
+export skip them. Needed because under D21 both revenue baselines pass on their own, so the loop's
+first passes would be rediscoveries. Cost: a better variant that stays close to a traded signal is
+rejected too (first case: `rev_yoy` z-scored against its own year, t 3.2 at 5 days, correlation
+0.73). Delete a folder to drop its seed. Revisit when the agent's strategy weights change, or add a
+"replaces a seed" rule if near-variants keep winning.
+
 ---
 
 *Template for new entries:*

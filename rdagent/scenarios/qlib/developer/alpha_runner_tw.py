@@ -78,6 +78,21 @@ def summary(metrics: dict) -> dict:
     }
 
 
+def judge_line(row: dict) -> str:
+    """One factor's verdict in a line, for the trace history the next rounds read."""
+    verdict = f"PASS at {row['horizon']}d" if row["passed"] else "fail"
+    m = row.get("metrics")
+    if not m:
+        return f"- {row['factor']}: {verdict}; " + "; ".join(row["reasons"][:3])
+    hs = list(m["ic"])
+    ic = "/".join(f"{m['ic'][h]:+.3f}" for h in hs)
+    t = "/".join(f"{m['ic_t'][h]:+.1f}" for h in hs)
+    line = (f"- {row['factor']}: {verdict}; Rank IC at {'/'.join(hs)} days {ic} (t {t}); "
+            f"24-day median excess {m['windows_24d']['median']:+.2%}; book beta {m['book_beta']:.2f}; "
+            f"max library corr {m['max_library_corr']:.2f}")
+    return line + (f"; why it failed: {'; '.join(row['reasons'][:4])}" if row["reasons"] else "")
+
+
 class QlibTwAlphaRunner(QlibTwFactorRunner):
     def develop(self, exp):
         rejected = {}

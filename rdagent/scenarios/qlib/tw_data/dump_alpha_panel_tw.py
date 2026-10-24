@@ -48,11 +48,13 @@ import pandas as pd
 
 try:
     from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
+    from rdagent.scenarios.qlib.tw_data.alpha_eval_tw import WINDOWS
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _paths import DATA_DIR
+    from alpha_eval_tw import WINDOWS
 
 # 4-digit codes starting 1-9 are common stocks (00xx = ETFs); 91xx are TDRs, not stocks.
 STOCK_CODE = re.compile(r"^[1-9]\d{3}$")
@@ -290,8 +292,8 @@ def add_vwap(panel: pd.DataFrame, raw_close: pd.Series | None) -> pd.DataFrame:
     return panel
 
 
-RESEARCH_END = "2025-06-30"  # alpha_eval_tw.WINDOWS["research"]; DeepSeek V4 data reaches ~May 2025
-DEBUG_START = "2024-07-01"
+RESEARCH_END = WINDOWS["research"][1]  # the coder data stops here: no holdout row reaches the LLM
+DEBUG_START = "2025-05-01"  # the research window's last year, for the coder's quick runs
 CODER_DROP = ["$in_official", "$vwap_exact"]  # the contest list is chosen in July 2026: future info
 
 

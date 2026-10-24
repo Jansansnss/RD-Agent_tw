@@ -6,9 +6,9 @@ way the AI CUP contest would trade it: pick from the point-in-time 150-stock uni
 at the next day's VWAP, pay 0.1425% per side plus 0.3% tax on sells. Higher value = buy.
 Pure pandas, seconds per alpha; no qlib, Docker or LLM.
 
-Windows (DECISIONS D16): "research" ends 2025-06-30, because DeepSeek V4's training data
-reaches about May 2025. "holdout" (2025-07-01 on) must never reach an LLM prompt; score it
-only for alphas that already passed the gate on the research window.
+Windows (DECISIONS D16, D21): "research" ends 2026-04-30 and "holdout" runs from 2026-05-01,
+a year after DeepSeek V4's training data ends (about May 2025). The holdout must never reach
+an LLM prompt; score it only for alphas that already passed the gate on the research window.
 
     python -m rdagent.scenarios.qlib.tw_data.alpha_eval_tw --alpha mom20 --alpha rev_accel
     python -m rdagent.scenarios.qlib.tw_data.alpha_eval_tw --alpha_file result.h5 --library mom20
@@ -38,8 +38,8 @@ CONTEST_DAYS = 24
 TRADING_DAYS_PER_YEAR = 244
 MIN_NAMES = 20  # smallest cross-section an IC is computed on
 WINDOWS = {
-    "research": ("2021-01-01", "2025-06-30"),
-    "holdout": ("2025-07-01", None),
+    "research": ("2021-01-01", "2026-04-30"),
+    "holdout": ("2026-05-01", None),
     "all": ("2021-01-01", None),
 }
 DEFAULT_GATE = {

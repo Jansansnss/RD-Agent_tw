@@ -1,7 +1,7 @@
 # TW Alpha Factory — RD-Agent as the AI CUP 2026 research lab
 
 > Design doc, started 2026-10-22. Status lives in PROJECT_STATE.md and the "Alpha factory" line of
-> TODO_GRAPH.md (nodes T7–T10, G3–G4, S5–S6). Why-entries: DECISIONS D15–D17.
+> TODO_GRAPH.md (nodes T7–T10, G3–G4, S5–S6). Why-entries: DECISIONS D15–D17, D19–D22.
 
 RD-Agent stays an **offline lab**. It never runs in the contest's daily decision path. Its job is
 to find alphas that a 20–30-name, long-only book on the contest's 150 stocks can use, to prove them
@@ -62,8 +62,11 @@ factor_ideas.md + "which pod is weak"
 Step 1 (data panel + judge) is built: `tw_data/dump_alpha_panel_tw.py`, `tw_data/alpha_eval_tw.py`,
 checked by `tw_data/_smoke_alpha_eval_tw.py`. Steps ①–⑤ are wired (T8, 2026-10-24, DECISIONS D20):
 `app/qlib_rd_loop/alpha_tw.py`, `experiment/alpha_tw_experiment.py`, `developer/alpha_runner_tw.py`,
-`developer/alpha_feedback_tw.py`, `tw_data/alpha_holdout_tw.py`, ideas in `data/alpha_ideas.md`.
-The canary ran one round in 4 minutes for about $0.03 (no factor passed). Step ⑥ is T10.
+`developer/alpha_feedback_tw.py`, `proposal/alpha_proposal_tw.py` (the trace history the next
+rounds read, written from the judge's verdicts), `tw_data/alpha_holdout_tw.py`, ideas in
+`data/alpha_ideas.md`. The library starts with the three signals the daily agent trades, as
+correlation references only (`library/traded_*`, no card; D22). The canary ran one round in 4
+minutes for about $0.03 (no factor passed). Step ⑥ is T10.
 
 ## 4. Data panel (`dump_alpha_panel_tw.py` → `data/alpha_tw/`)
 
@@ -118,8 +121,9 @@ An alpha is a `(datetime, instrument)` series known on the evening of `datetime`
 | `library_corr` | mean daily rank correlation with each library alpha; `mom20` doubles as the crowding proxy |
 | `coverage` | share of universe names with a value |
 
-Windows: **research** 2021-01-01 → 2025-06-30; **holdout** 2025-07-01 → latest; **all**. Signals
-whose exit day falls after the window end are dropped, so no label crosses the boundary.
+Windows (`WINDOWS`, D21): **research** 2021-01-01 → 2026-04-30; **holdout** 2026-05-01 → latest;
+**all**. Signals whose exit day falls after the window end are dropped, so no label crosses the
+boundary. Until 2026-10-24 the split was 2025-06-30 / 2025-07-01.
 
 ```bash
 python -m rdagent.scenarios.qlib.tw_data.alpha_eval_tw --alpha mom20 --alpha rev_accel --library mom20
@@ -146,7 +150,32 @@ The holdout only **confirms** a research pass (`HOLDOUT_GATE`): t ≥ 2.0, same 
 > 0, no year count (it is under a year long). The v2 plan's own thresholds (t > 2) stay right for
 the team's few pre-registered hypotheses; t ≥ 3 is for the loop's many trials.
 
-### Baseline verdict (2026-10-23, data to 2026-10-22)
+### Baseline verdict, current split (2026-10-24, D21)
+
+Research = 2021-01-04 → 2026-04-30; holdout = 2026-05-04 → 2026-10-22 (about 117 trading days).
+IC at 5 days, t in brackets; 24-day median = rolling 24-day net excess of the top-24 book.
+
+| Alpha | IC research | 24d median research | IC holdout | 24d median holdout | ann. excess holdout | beta holdout |
+|---|---|---|---|---|---|---|
+| `rev_accel` (traded, seed) | +0.024 (3.5) **pass** | +1.22% | +0.014 (0.7) | −2.56% | −17.8% | 1.12 |
+| `rev_yoy` (traded, seed) | +0.026 (3.1) **pass** | +0.84% | −0.017 (−0.5) | −2.86% | −18.5% | 1.21 |
+| `mom60_skip5` (traded, seed) | +0.020 (1.8) | +0.52% | −0.078 (−2.1) | −0.28% | −54.5% | 1.39 |
+| `mom20` | +0.004 (0.4) | −0.11% | −0.057 (−1.7) | −3.42% | −37.5% | 1.13 |
+| `foreign_flow20` | +0.009 (1.4) | −0.33% | −0.001 (−0.0) | −0.87% | +16.9% | 1.14 |
+| `trust_flow20` | −0.006 (−0.9) | −0.20% | +0.026 (1.1) | +0.44% | −8.8% | 1.09 |
+| `trust_flow5` | −0.006 (−1.1) | −0.64% | +0.004 (0.2) | −0.47% | −4.7% | 1.18 |
+| `lowvol60` | +0.012 (0.8) | −0.80% | +0.095 (1.3) | +2.69% | +38.8% | 0.10 |
+| `rev5` (IC at 1 day: +0.021 (3.9) research, +0.046 (2.1) holdout) | +0.009 (1.2) | −1.16% | +0.029 (0.9) | −3.55% | −47.0% | 1.26 |
+
+- Moving 2025-07 → 2026-04 into research lifts both revenue signals over the gate at 5 days.
+- On the new holdout every signal the daily agent trades loses, momentum worst (worst 10% of
+  24-day windows −16.3%); only low volatility wins, with beta 0.10. The 9/1–10/22 paper run of the
+  agent (−8.7%) sits inside this holdout. Six months is short: no holdout t reaches 2.5.
+- The baselines are human, pre-registered ideas, and the old holdout (2025-07 → 2026-10) had
+  already been scored for them, so their new holdout numbers are not virgin. For loop factors
+  the holdout is untouched.
+
+### Baseline verdict, first split (2026-10-23, data to 2026-10-22)
 
 The v2 hypotheses as baselines, point-in-time universe, top-24 book. Research = 2021-01-04 →
 2025-06-30; holdout = 2025-07-01 → 2026-10-22. (These are human, pre-registered ideas, so scoring
@@ -196,8 +225,9 @@ So the protocol:
 1. **Clean window = after the model's training data.** DeepSeek's EU training summary for V4
    says some data was "collected approximately no later than May 2025"
    ([DeepSeek, public summary of training content](https://cdn.deepseek.com/policies/DeepSeek_Template_for_the_Public_Summary_of_Training_Content_for_GeneralPurpose_AI_model.pdf)).
-   Research window ends 2025-06-30; holdout runs 2025-07-01 → today (~16 months). "Approximately"
-   and "some data" mean the holdout is probably clean, not certainly clean.
+   Research window ends 2026-04-30; holdout runs 2026-05-01 → today (~6 months, D21), a year after
+   that date. "Approximately" and "some data" mean the holdout is probably clean, not certainly
+   clean; part of the research window (2025-06 → 2026-04) is now after the cutoff as well.
 2. **The model must not move under us.** DeepSeek announced the end of `deepseek-chat` for
    2026-07-24 ([DeepSeek change log](https://api-docs.deepseek.com/updates)); it had mapped to
    V4-Flash since 2026-04-24, and it still answered on 2026-10-24, so which model serves it now is

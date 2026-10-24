@@ -257,6 +257,10 @@ class AlphaTwBasePropSetting(FactorTwBasePropSetting):
     model_config = SettingsConfigDict(env_prefix="QLIB_ALPHA_TW_", protected_namespaces=())
 
     scen: str = "rdagent.scenarios.qlib.experiment.alpha_tw_experiment.QlibTwAlphaScenario"
+    hypothesis_gen: str = "rdagent.scenarios.qlib.proposal.alpha_proposal_tw.QlibTwAlphaHypothesisGen"
+    hypothesis2experiment: str = (
+        "rdagent.scenarios.qlib.proposal.alpha_proposal_tw.QlibTwAlphaHypothesis2Experiment"
+    )
     runner: str = "rdagent.scenarios.qlib.developer.alpha_runner_tw.QlibTwAlphaRunner"
     summarizer: str = "rdagent.scenarios.qlib.developer.alpha_feedback_tw.QlibTwAlphaFeedback"
 
