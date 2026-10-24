@@ -155,6 +155,19 @@ can't help there; only 2 member-months since 2021 show a > 10.5% daily move (no 
 the 60 days before selection. Revisit if exchange listing dates are collected; they would also
 settle the bin-universe question under TODO D1.
 
+**D20 — How the alpha loop is wired** *(2026-10-24)*
+The TW factor loop's proposal and CoSTEER coder are reused unchanged; a new runner and feedback
+replace qrun and the LLM's SOTA call. Choices: the coder reads `data/alpha_tw/coder/`, which has
+stock codes replaced by S001.. (dates kept, so revenue timing stays easy to code) and stops at the
+research end, so loop code never runs on holdout data; `$in_official` is dropped (the July-2026
+list is future information); code with an ID, stock-code or date literal is rejected unscored; an
+alpha passes at the 5- or 20-day horizon (two looks, under the t >= 3 bar); passing factors go to
+an on-disk library (card + code + values) that is also the correlation reference; the holdout
+runs only in `alpha_holdout_tw.py`. Research scope is any factor that could win a short contest
+(Jans, 2026-10-24); mapping to one of the five declared families happens at export, to keep the
+prospectus theme rule. Coder repair rounds default to 6 (cost). Revisit after the canary measures
+cost per round.
+
 ---
 
 *Template for new entries:*

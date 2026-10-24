@@ -250,10 +250,22 @@ class FactorFromReportTwPropSetting(FactorTwBasePropSetting):
     """Maximum number of reports to process"""
 
 
+class AlphaTwBasePropSetting(FactorTwBasePropSetting):
+    """TW alpha factory loop (docs/tw/ALPHA_FACTORY.md): same proposal and coder as the TW factor
+    loop, judged by tw_data/alpha_eval_tw on the anonymized research panel instead of qrun."""
+
+    model_config = SettingsConfigDict(env_prefix="QLIB_ALPHA_TW_", protected_namespaces=())
+
+    scen: str = "rdagent.scenarios.qlib.experiment.alpha_tw_experiment.QlibTwAlphaScenario"
+    runner: str = "rdagent.scenarios.qlib.developer.alpha_runner_tw.QlibTwAlphaRunner"
+    summarizer: str = "rdagent.scenarios.qlib.developer.alpha_feedback_tw.QlibTwAlphaFeedback"
+
+
 FACTOR_PROP_SETTING = FactorBasePropSetting()
 FACTOR_TW_PROP_SETTING = FactorTwBasePropSetting()
 FACTOR_FROM_REPORT_PROP_SETTING = FactorFromReportPropSetting()
 FACTOR_FROM_REPORT_TW_PROP_SETTING = FactorFromReportTwPropSetting()
+ALPHA_TW_PROP_SETTING = AlphaTwBasePropSetting()
 MODEL_PROP_SETTING = ModelBasePropSetting()
 MODEL_TW_PROP_SETTING = ModelTwBasePropSetting()
 QUANT_PROP_SETTING = QuantBasePropSetting()

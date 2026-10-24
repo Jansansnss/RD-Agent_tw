@@ -25,6 +25,11 @@ Outputs (default data/alpha_tw/):
   universe_pit.csv      month_end, instrument, market, rank, market_value
   instruments_meta.csv  instrument, name, market, industry, industry_id
   panel_meta.json       sources, date range, VWAP coverage
+  coder/daily_pv.h5     for the alpha loop's LLM coder (DECISIONS D16): stock codes replaced by
+                        S001.., research window only, no contest-list flag
+  coder_debug/          the same, last year of the research window (fast coding rounds)
+  coder_full/           the same, all dates: only the holdout script reads it, never the loop
+  coder_map.csv         S-ID -> stock code (kept outside the coder folders)
 
     python -m rdagent.scenarios.qlib.tw_data.dump_alpha_panel_tw
     python -m rdagent.scenarios.qlib.tw_data.dump_alpha_panel_tw \
@@ -285,6 +290,27 @@ def add_vwap(panel: pd.DataFrame, raw_close: pd.Series | None) -> pd.DataFrame:
     return panel
 
 
+RESEARCH_END = "2025-06-30"  # alpha_eval_tw.WINDOWS["research"]; DeepSeek V4 data reaches ~May 2025
+DEBUG_START = "2024-07-01"
+CODER_DROP = ["$in_official", "$vwap_exact"]  # the contest list is chosen in July 2026: future info
+
+
+def write_coder_data(panel: pd.DataFrame, out_dir: Path) -> None:
+    """Anonymized copies of the panel for the alpha loop (see module docstring)."""
+    codes = sorted(panel.index.get_level_values("instrument").unique())
+    ids = {code: f"S{i + 1:03d}" for i, code in enumerate(codes)}
+    pd.Series(ids, name="sid").rename_axis("instrument").to_csv(out_dir / "coder_map.csv")
+    anon = panel.drop(columns=[c for c in CODER_DROP if c in panel.columns])
+    anon = anon.rename(index=ids, level="instrument").sort_index()
+    dates = anon.index.get_level_values("datetime")
+    for folder, rows in (("coder", dates <= RESEARCH_END),
+                         ("coder_debug", (dates >= DEBUG_START) & (dates <= RESEARCH_END)),
+                         ("coder_full", dates == dates)):
+        (out_dir / folder).mkdir(parents=True, exist_ok=True)
+        anon[rows].to_hdf(out_dir / folder / "daily_pv.h5", key="data", mode="w")
+    print(f"Coder data: {len(ids)} anonymized stocks; research rows {int((dates <= RESEARCH_END).sum()):,}")
+
+
 def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
           official_list: Path | None, n_twse: int, n_tpex: int, min_history_days: int) -> None:
     mv, first_seen, calendar = load_market_value(input_dir / "market_value.csv", start)
@@ -333,6 +359,7 @@ def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
 
     out_dir.mkdir(parents=True, exist_ok=True)
     panel.to_hdf(out_dir / "alpha_panel.h5", key="data", mode="w")
+    write_coder_data(panel, out_dir)
     universe.to_csv(out_dir / "universe_pit.csv", index=False)
     meta.loc[meta.index.isin(codes)].to_csv(out_dir / "instruments_meta.csv")
 

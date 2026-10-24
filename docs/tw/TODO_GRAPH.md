@@ -22,9 +22,10 @@ renumber.
 - **J5** Loops (T2/T4) are blocked unless Jans has approved the LLM spend this session (CLAUDE.md
   rule 5). No gate overrides this.
 - **J6** Upstream security/bugfix urgently needed → T6 out of band.
-- **J7** Before any loop launch (T2/T4/T9): `CHAT_MODEL` must not be `deepseek-chat` or
-  `deepseek-reasoner` (retired 2026-07-24; use `deepseek/deepseek-flash` or
-  `deepseek/deepseek-v4-pro`), and the served model string must be logged (DECISIONS D16) → else D0.
+- **J7** Before a long loop campaign (T2/T4/T9): prefer `CHAT_MODEL` `deepseek/deepseek-flash` or
+  `deepseek/deepseek-v4-pro`. DeepSeek announced the end of `deepseek-chat`/`deepseek-reasoner` for
+  2026-07-24, yet `deepseek-chat` still answered on 2026-10-24 (T8 canary): deprecated, not dead,
+  but it can stop without notice and its serving model is unknown. Log the served model (D16).
 
 ## Main line
 
@@ -37,6 +38,8 @@ repo → resolve/commit first (PM).
   2026-05-08); FinMind token rejected → T0 blocked on **D3**. health_check not run.
 - 2026-10-23: token and data done (T0, G1). Still open: `rdagent health_check`, which needs the
   retired `deepseek-chat` model name replaced first (J7/D0).
+- 2026-10-24: correction: `deepseek-chat` still answers (the T8 canary used it), so it does not
+  block health_check; switching is still advised (J7).
 
 ### `[x]` T0 · Data refresh — Jans (machine); Scribe monitors log
 Entry: G0 pass. Runtime 15–40 min.
@@ -143,15 +146,20 @@ Run the baselines on research + holdout; hand results to the contest team (they 
   days; holdout t 4.6 at 20 days, 78% of 24-day windows won). Momentum's holdout edge faded
   with five more months (t 4.0 → 1.8). 投信 flow still nothing. Handoff to the team: Jans.
 
-### `[ ]` T8 · Judge into the loop — `risky` — Architect then Implementer
+### `[x]` T8 · Judge into the loop — `risky` — Architect then Implementer
 New `alpha_tw` loop: scenario text (contest rules, pods, panel fields; no tickers/dates), runner
 subclass calling `evaluate()` instead of qrun (no Docker), feedback subclass with `gate()` in code,
 alpha-card writer, reject check for stock-code/date literals, entry `app/qlib_rd_loop/alpha_tw.py`
 + `AlphaTwBasePropSetting` (prefix `QLIB_ALPHA_TW_`). Decide T6 first. Exit: canary `--loop_n 1`
 (needs J5, J7).
+- 2026-10-24: built (D20); T6 turned out not to block it (no qrun/Docker). Smoke 20/20. Canary
+  (Jans approved one round): 1 loop in 4 min, 28 LLM calls, ~$0.03; 4 factors, none passed. Best:
+  revenue surprise vs own year (t 3.32 at 1d, 2.30 at 5d, 1.83 at 20d). Run with
+  `conda activate rdagent` (the coder needs `CONDA_DEFAULT_ENV`), `.env` sourced, `CHAT_STREAM=false`.
 
 ### `[ ]` T9 · Alpha campaign — Jans launches; PM steers per pod
 Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
+- 2026-10-24: waiting for Jans to set the number of rounds (~4 min and ~$0.03 per round).
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None
@@ -204,6 +212,8 @@ PROJECT_STATE.
   2026-04-24; they mapped to V4-Flash until then). PROJECT_STATE records the loop on
   `deepseek/deepseek-chat`, so the next loop will fail until Jans switches `CHAT_MODEL` (and any
   LiteLLM map) to `deepseek-flash` or `deepseek-v4-pro`. `deepseek-flash` follows the latest model.
+- 2026-10-24: that prediction was wrong: the T8 canary ran 26 calls on `deepseek/deepseek-chat` and
+  2 on `deepseek/deepseek-v4-pro` (via `LITELLM_CHAT_MODEL_MAP`), all answered. See J7.
 
 ### D1 · Data quality — Scout diagnoses → Implementer fixes
 Rules live in `data/DATA_AUDIT_REPORT.md`. Fixes go into **collector + cleaner, never hand-edit

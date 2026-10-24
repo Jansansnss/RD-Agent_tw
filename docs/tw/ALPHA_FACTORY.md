@@ -60,7 +60,10 @@ factor_ideas.md + "which pod is weak"
 ```
 
 Step 1 (data panel + judge) is built: `tw_data/dump_alpha_panel_tw.py`, `tw_data/alpha_eval_tw.py`,
-checked by `tw_data/_smoke_alpha_eval_tw.py`. Steps ②–⑥ are TODO nodes T8–T10.
+checked by `tw_data/_smoke_alpha_eval_tw.py`. Steps ①–⑤ are wired (T8, 2026-10-24, DECISIONS D20):
+`app/qlib_rd_loop/alpha_tw.py`, `experiment/alpha_tw_experiment.py`, `developer/alpha_runner_tw.py`,
+`developer/alpha_feedback_tw.py`, `tw_data/alpha_holdout_tw.py`, ideas in `data/alpha_ideas.md`.
+The canary ran one round in 4 minutes for about $0.03 (no factor passed). Step ⑥ is T10.
 
 ## 4. Data panel (`dump_alpha_panel_tw.py` → `data/alpha_tw/`)
 
@@ -195,9 +198,10 @@ So the protocol:
    ([DeepSeek, public summary of training content](https://cdn.deepseek.com/policies/DeepSeek_Template_for_the_Public_Summary_of_Training_Content_for_GeneralPurpose_AI_model.pdf)).
    Research window ends 2025-06-30; holdout runs 2025-07-01 → today (~16 months). "Approximately"
    and "some data" mean the holdout is probably clean, not certainly clean.
-2. **The model must not move under us.** `deepseek-chat` was retired on 2026-07-24
-   ([DeepSeek change log](https://api-docs.deepseek.com/updates)); it had mapped to V4-Flash since
-   2026-04-24. The current names are `deepseek-flash` (V4.1-Flash-1017 as of 2026-10-17, and it
+2. **The model must not move under us.** DeepSeek announced the end of `deepseek-chat` for
+   2026-07-24 ([DeepSeek change log](https://api-docs.deepseek.com/updates)); it had mapped to
+   V4-Flash since 2026-04-24, and it still answered on 2026-10-24, so which model serves it now is
+   unknown. The current names are `deepseek-flash` (V4.1-Flash-1017 as of 2026-10-17, and it
    "points to the latest model") and `deepseek-v4-pro`
    ([pricing page](https://api-docs.deepseek.com/quick_start/pricing)). Log the served model string
    for every run. If a newer model has a later cutoff, move the research/holdout boundary.

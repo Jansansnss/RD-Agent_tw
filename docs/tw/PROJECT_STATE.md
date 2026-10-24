@@ -3,6 +3,20 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-24: alpha loop wired; contest agent built
+
+**Alpha loop (T8 `[x]`, D20):** RD-Agent now proposes and codes factors for the contest and the code
+judge decides acceptance (`app/qlib_rd_loop/alpha_tw.py`). Canary, approved by Jans for one round:
+4 minutes, 28 LLM calls, about $0.03; 4 factors, none passed (best: revenue surprise vs its own
+year, t 3.32 at 1 day, 2.30 at 5). The campaign (T9) waits for Jans to set the number of rounds.
+
+**Correction:** `deepseek-chat` did not stop working. DeepSeek announced its end for 2026-07-24,
+but the canary's 26 chat calls used it without error (J7 rewritten: deprecated, not dead).
+
+**Contest repo:** the daily agent lives in `G:\AI_cup_2026\agent\` (branch `add-daily-agent`, not in
+this repo): it recomputes the same revenue and momentum formulas on the team's own FinMind data,
+so no RD-Agent code runs in the contest's daily path (D15).
+
 ## Snapshot — 2026-10-23: data current through 2026-10-22
 
 **Data refreshed** (T0 `[x]`, G1 `[x]`): clean CSVs, qlib bin (3,041 instruments, 4,103 days) and
@@ -141,8 +155,9 @@ left by that session had blocked the commit).
 - Windows + WSL2; repo at `G:\Github\RD-Agent` = `/mnt/g/Github/RD-Agent` in WSL.
 - Conda env `rdagent` (miniconda3), Python 3.10, pyqlib 0.9.7, CPU-only torch; Docker available
   for qrun.
-- LLM: LiteLLM proxy → `deepseek/deepseek-chat` (**retired by DeepSeek 2026-07-24** — switch to
-  `deepseek-flash` or `deepseek-v4-pro` before any loop, J7); keys + `FINMIND_TOKEN_API_KEY` in untracked
+- LLM: LiteLLM → `deepseek/deepseek-chat` (deprecated: announced end 2026-07-24, still answering
+  2026-10-24), with `LITELLM_CHAT_MODEL_MAP` sending some calls to `deepseek/deepseek-v4-pro`;
+  prefer `deepseek-flash` before long campaigns (J7); keys + `FINMIND_TOKEN_API_KEY` in untracked
   `.env`. FinMind tier: Sponsor (account level 3, 6,000 calls/hour rolling); the token was
   rotated and replaced on 2026-10-22.
 - WSL2 has ~11 GB RAM; the OHLCV merge (~8M rows) peaks at a few GB.

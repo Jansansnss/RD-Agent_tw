@@ -139,6 +139,32 @@ def main() -> None:
     results.append(check("stale TPEx snapshot overridden by weights",
                          set(uni.loc[uni["instrument"] == "6472", "market"]) == {"twse"}))
 
+    # 9. Coder data for the alpha loop: anonymized IDs, research window only, no contest-list flag.
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        idx = pd.MultiIndex.from_product([pd.to_datetime(["2025-06-30", "2025-07-01"]), ["2330", "2454"]],
+                                         names=["datetime", "instrument"])
+        tiny = pd.DataFrame({"$close": [1.0, 2.0, 3.0, 4.0], "$in_official": 1.0, "$vwap_exact": 1.0}, index=idx)
+        dp.write_coder_data(tiny, Path(tmp))
+        coder = pd.read_hdf(Path(tmp) / "coder" / "daily_pv.h5", key="data")
+        full = pd.read_hdf(Path(tmp) / "coder_full" / "daily_pv.h5", key="data")
+    ok = (set(coder.index.get_level_values("instrument")) == {"S001", "S002"}
+          and coder.index.get_level_values("datetime").max() == pd.Timestamp("2025-06-30")
+          and len(full) == 4 and "$in_official" not in coder.columns)
+    results.append(check("coder data anonymized and cut at the research end", ok))
+
+    # 10. The loop rejects code with literals (needs the rdagent package, i.e. the WSL env).
+    try:
+        from rdagent.scenarios.qlib.developer.alpha_runner_tw import literal_problems
+    except ImportError as err:
+        print(f"[skip] literal check: {err}")
+    else:
+        bad = literal_problems("x = df.xs('2330', level=1); y = df.loc['2024-01-02']; z = df.xs(\"S012\", level=1)")
+        clean = literal_problems("df.groupby(level='instrument')['$close'].pct_change(20)")
+        results.append(check("literal check", len(bad) == 3 and not clean, str(bad)))
+
     print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):
         raise SystemExit(1)

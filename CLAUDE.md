@@ -85,6 +85,13 @@ dump_factor_h5.py   → git_ignore_folder/factor_implementation_source_data/dail
 | TW factor | `factor_tw.py` | `FactorTwBasePropSetting` | `QLIB_FACTOR_TW_` |
 | TW factor from PDF reports | `factor_tw_from_report.py` | `FactorFromReportTwPropSetting` | `QLIB_FACTOR_FROM_REPORT_TW_` |
 | TW model | `model_tw.py` | `ModelTwBasePropSetting` | `QLIB_MODEL_TW_` |
+| TW alpha factory (AI CUP 2026) | `alpha_tw.py` | `AlphaTwBasePropSetting` | `QLIB_ALPHA_TW_` |
+
+The alpha loop needs no Docker: its runner (`developer/alpha_runner_tw.py`) scores factors with
+`tw_data/alpha_eval_tw.py` on `data/alpha_tw/coder/` (anonymized IDs, research window only) and
+its feedback (`developer/alpha_feedback_tw.py`) gates in code and writes `data/alpha_tw/library/`.
+Its idea file is `data/alpha_ideas.md` (local-only, like `factor_ideas.md`; research-period
+numbers only). Holdout check: `tw_data/alpha_holdout_tw.py`, never inside the loop.
 
 Date window (all TW settings): train 2021-01-01..2023-12-31, valid 2024, test 2025-01-01..rolling
 `test_end`. `test_end` MUST stay ≤ (qlib calendar end − 1 trading day) — see pitfalls.
@@ -149,8 +156,11 @@ Upstream classes got overridable attributes; TW subclasses set them:
 - **FinMind `stock_info` dates are record dates**: a board change (emerging → listed, TPEx →
   TWSE) appears only when FinMind re-records the stock, sometimes many months later. Date
   listings by the first `market_value_weight.csv` row instead (from 2024-10-30; D19).
-- **`deepseek-chat` is retired** (DeepSeek, 2026-07-24): loops on that model name fail. Use
-  `deepseek-flash` or `deepseek-v4-pro`, and log the served model (J7, D16).
+- **`deepseek-chat` is deprecated**: DeepSeek announced its end for 2026-07-24, yet it still
+  answered on 2026-10-24. It can stop without notice, and which model serves it is unknown (D16
+  needs the training cutoff). Prefer `deepseek-flash` or `deepseek-v4-pro`; log the served model (J7).
+- **Run the alpha loop with `conda activate rdagent`**, not the env's python by path: the CoSTEER
+  coder reads `CONDA_DEFAULT_ENV` to pick the env for factor code, and fails without it.
 - **Instrument codes are text**: read every CSV with `dtype={"instrument": str}` (and
   `stock_id`). pandas infers dtypes per chunk, and `zfill(4)` cannot restore `006201` once it
   became int 6201, a real stock. Until 2026-10-22 `dump_to_bin.py` did this: 6,353 margin rows of
