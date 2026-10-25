@@ -100,7 +100,10 @@ correlation references only, D22). Its idea file is `data/alpha_ideas.md` (local
 `tw_data/alpha_holdout_tw.py`, never inside the loop. Every confirmed card then gets
 `tw_data/alpha_review_tw.py` and an entry in `docs/tw/ALPHA_REVIEWS.md` before anyone uses it (D24),
 including an A–F review answered from the filled `data/alpha_tw/reviews/<card>_prompt.md` by a model
-other than the loop's (D25).
+other than the loop's (D25). Teammates' ideas are scored as fixed formulas first
+(`tw_data/alpha_team_ideas_tw.py`), then go into the idea file with their research results (D29).
+Signals are combined with fixed weights: the LightGBM combiner (`tw_data/alpha_combiner_tw.py`) lost
+to an equal-weight average (D28). The coder's quick runs use `coder_debug` (two years, D26).
 
 Date window (all TW settings): train 2021-01-01..2023-12-31, valid 2024, test 2025-01-01..rolling
 `test_end`. `test_end` MUST stay ≤ (qlib calendar end − 1 trading day) — see pitfalls.

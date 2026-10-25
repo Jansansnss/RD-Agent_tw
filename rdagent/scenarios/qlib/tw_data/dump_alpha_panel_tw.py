@@ -27,7 +27,7 @@ Outputs (default data/alpha_tw/):
   panel_meta.json       sources, date range, VWAP coverage
   coder/daily_pv.h5     for the alpha loop's LLM coder (DECISIONS D16): stock codes replaced by
                         S001.., research window only, no contest-list flag
-  coder_debug/          the same, last year of the research window (fast coding rounds)
+  coder_debug/          the same, last two years of the research window (fast coding rounds)
   coder_full/           the same, all dates: only the holdout script reads it, never the loop
   coder_map.csv         S-ID -> stock code (kept outside the coder folders)
 
@@ -293,7 +293,9 @@ def add_vwap(panel: pd.DataFrame, raw_close: pd.Series | None) -> pd.DataFrame:
 
 
 RESEARCH_END = WINDOWS["research"][1]  # the coder data stops here: no holdout row reaches the LLM
-DEBUG_START = "2025-05-01"  # the research window's last year, for the coder's quick runs
+# The research window's last two years, for the coder's quick runs. One year was too short: a
+# 250-day window was all NaN there, so the coder rejected such factors before scoring (D26).
+DEBUG_START = "2024-05-01"
 CODER_DROP = ["$in_official", "$vwap_exact"]  # the contest list is chosen in July 2026: future info
 
 

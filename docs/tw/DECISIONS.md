@@ -225,6 +225,37 @@ quality poorly without a backtest (AlphaBench, ICLR 2026). The waste is in code 
 that never coded took about 60% of the flash run's calls and time. Revisit if the in-loop critique
 slows rounds or proposals parrot it without better scores.
 
+**D26 — The coder's debug panel holds two years, not one** *(2026-10-26)*
+CoSTEER checks factor code on `coder_debug` before the full research run. With one year
+(2025-05 → 2026-04, 245 days) every 250-day window was all NaN there, so round 30 of the third
+campaign never scored its two 252-day factors, and round 31 proposed two more. `DEBUG_START` is now
+2024-05-01 (484 days); the rebuilt file matches the old one on the overlap. Cost: debug runs take
+about twice as long, still seconds. Revisit if windows longer than a year become common.
+
+**D27 — The loop keeps a $0.50 reserve on the DeepSeek account** *(2026-10-26)*
+Jans asked to run until the balance is gone. The contest's daily agent (`AI_cup_2026/agent/llm.py`)
+calls deepseek-flash on the same account for its D-Plan texts and falls back to templates when a
+call fails. A watchdog in the run script reads the balance every 5 minutes and stops the loop below
+$0.50, enough for the agent's few small calls a day through the contest month. Revisit if the
+agent gets its own key.
+
+**D28 — Signals are combined with fixed weights, not a trained model** *(2026-10-26)*
+`alpha_combiner_tw.py` ran the model report's walk-forward test. On 2024-01 → 2026-04, LightGBM
+(IC5 t 1.2, 24-day median −0.31%) and learned linear weights (t 1.6, −0.03%) both lost to the
+equal-weight rank average of the same five signals (t 5.1, +1.19%) and to the agent's 50/20/30
+(t 4.1, +2.44%). Every fold gave its largest share to sales yield (29–67% of the gain), 2021–2023's
+best signal, which had no IC after 2023 (t 0.1). So additions to the agent's mix use fixed weights,
+and the contest period decides between equal weights and 50/20/30 by paper tracking. Revisit with
+several more years of data or a much stronger input.
+
+**D29 — Teammates' ideas enter the loop with their research results** *(2026-10-26)*
+Alisa's strategy review became B1–B14 in `data/alpha_ideas.md`, first scored as fixed formulas
+(`alpha_team_ideas_tw.py`): none passes the research gate. Each idea carries its research-period
+result, so the LLM tests variants instead of resubmitting failed plain forms, and tags hypotheses
+with the idea number. Holdout numbers stay out of the file. The ideas were written after the
+holdout months, so a card derived from them that passes the holdout is a reference only; the
+contest period confirms it. Revisit when more teammate ideas arrive (C1.., same rules).
+
 ---
 
 *Template for new entries:*
