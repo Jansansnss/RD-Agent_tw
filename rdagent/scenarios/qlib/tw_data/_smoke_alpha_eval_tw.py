@@ -191,6 +191,22 @@ def main() -> None:
                              long_text.count("# Trial ") == 10 and "trial 2 a: t5 +3.4" in long_text
                              and "trial 2 b: the code contains a date" in long_text))
 
+    # 12. Two passes of one round that copy each other: only the higher-t one stays.
+    try:
+        from rdagent.scenarios.qlib.developer.alpha_runner_tw import dedupe_round
+    except ImportError as err:
+        print(f"[skip] same-round copies: {err}")
+    else:
+        base = pd.Series(RNG.normal(size=len(panel)), index=panel.index)
+        other = pd.Series(RNG.normal(size=len(panel)), index=panel.index)
+        passing = lambda name, t: {"factor": name, "passed": True, "horizon": 5, "reasons": [],  # noqa: E731
+                                   "metrics": {"ic_t": {"5": t, "20": t}}}
+        rows = [passing("copy", 3.5), passing("orig", 4.0), passing("new", 3.2)]
+        dedupe_round(rows, {"copy": base * 2 + 1, "orig": base, "new": other}, panel)
+        results.append(check("same-round copies are rejected",
+                             [r["passed"] for r in rows] == [False, True, True] and "orig" in rows[0]["reasons"][0],
+                             str([r["reasons"] for r in rows])))
+
     print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):
         raise SystemExit(1)

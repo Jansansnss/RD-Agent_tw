@@ -190,6 +190,16 @@ rejected too (first case: `rev_yoy` z-scored against its own year, t 3.2 at 5 da
 0.73). Delete a folder to drop its seed. Revisit when the agent's strategy weights change, or add a
 "replaces a seed" rule if near-variants keep winning.
 
+**D23 — Passes of one round are compared with each other too** *(2026-10-25)*
+The runner gated every factor against the library as it stood before the round, so round 29 of
+the flash campaign put four window variants of one idea into the library at once (correlation
+0.72–0.92 with each other). `alpha_runner_tw.dedupe_round` now ranks a round's passes by their best
+t; each later pass must also stay within the 0.6 correlation limit of the ones kept, or it fails
+with that reason. Highest t first because the gate already treats t as the evidence; the holdout
+showed research t does not predict holdout t, so this is a tie-break, not a quality claim. The four
+round-29 cards stay in the library as correlation references (none passed the holdout). Revisit
+with the "replaces a card" rule (D22).
+
 ---
 
 *Template for new entries:*

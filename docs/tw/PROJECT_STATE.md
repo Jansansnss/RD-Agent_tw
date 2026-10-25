@@ -3,6 +3,16 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-25: flash campaign; 2 alphas confirmed on the holdout
+
+**Flash campaign (T9, Jans: every step on `deepseek-flash`, run until the balance is gone):**
+rounds 10–29 from 03:36 to 08:29, $1.93 billed. 48 factors judged, 11 passed the research gate,
+but round 29's four were variants of one idea; same-round passes are now deduplicated (D23).
+**Holdout (G4):** 2 of the 12 library cards confirm, both built on "large and liquid":
+`LiquiditySize_Rank_20d` and `SalesYield_LiquiditySize_70_30`. Every momentum-type card failed or
+reversed, like the agent's own momentum leg. The DeepSeek balance is 0. Report for the team:
+Claude Doc "RD-Agent 因子研究 flash 長跑報告".
+
 ## Snapshot — 2026-10-24 (evening): split moved; first 10-round campaign done
 
 **Split (D21):** research 2021-01 → 2026-04-30, holdout 2026-05-01 → latest (117 trading days to

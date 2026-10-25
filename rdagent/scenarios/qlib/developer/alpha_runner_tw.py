@@ -93,6 +93,24 @@ def judge_line(row: dict) -> str:
     return line + (f"; why it failed: {'; '.join(row['reasons'][:4])}" if row["reasons"] else "")
 
 
+def dedupe_round(rows: list[dict], series_of: dict[str, pd.Series], panel: pd.DataFrame) -> None:
+    """Passes of one round must not copy each other either: the library check only sees earlier
+    rounds, so 40/60/80-day variants of one idea all passed together (round 29, 2026-10-25). The
+    highest-t pass stays; a later one over the correlation limit fails like a library copy."""
+    limit = ev.DEFAULT_GATE["max_library_corr"]
+    kept: dict[str, pd.Series] = {}
+    best_t = lambda r: max(r["metrics"]["ic_t"][str(h)] for h in GATE_HORIZONS)  # noqa: E731
+    for row in sorted((r for r in rows if r["passed"]), key=best_t, reverse=True):
+        if kept:
+            corr = ev.evaluate(series_of[row["factor"]], panel, window="research", library=kept)["library_corr"]
+            name, c = max(corr.items(), key=lambda kv: abs(kv[1]))
+            if abs(c) > limit:
+                row.update(passed=False, horizon=None,
+                           reasons=[f"correlation {abs(c):.2f} with {name}, which passed in this round > {limit}"])
+                continue
+        kept[row["factor"]] = series_of[row["factor"]]
+
+
 class QlibTwAlphaRunner(QlibTwFactorRunner):
     def develop(self, exp):
         rejected = {}
@@ -105,7 +123,7 @@ class QlibTwAlphaRunner(QlibTwFactorRunner):
         if values.empty:
             raise FactorEmptyError("No factor produced values on the research data.")
         panel, lib = judge_panel(), library()
-        rows = []
+        rows, series_of = [], {}
         for col in values.columns:
             row = {"factor": str(col), "passed": False, "horizon": None, "reasons": [], "metrics": None}
             if col in rejected:
@@ -119,7 +137,10 @@ class QlibTwAlphaRunner(QlibTwFactorRunner):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 series.to_frame(str(col)).to_parquet(path)
                 row["values_path"] = str(path)
-            logger.info(f"alpha judge: {col} -> {'PASS' if row['passed'] else 'fail'} {row['reasons'][:3]}")
+                series_of[str(col)] = series
             rows.append(row)
+        dedupe_round(rows, series_of, panel)
+        for row in rows:
+            logger.info(f"alpha judge: {row['factor']} -> {'PASS' if row['passed'] else 'fail'} {row['reasons'][:3]}")
         exp.result = {"factors": rows, "library_size": len(lib)}
         return exp

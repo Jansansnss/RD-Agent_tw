@@ -179,6 +179,11 @@ Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
   (`--checkout_path`), with `CHAT_MODEL`/`LITELLM_CHAT_MODEL` set to `deepseek/deepseek-flash` and
   an empty `*_CHAT_MODEL_MAP` exported after `.env`. The proposal history now keeps the last 10
   trials in full and older ones as one line per factor, so a long run's prompts stay bounded.
+  Ended 08:29 when the balance hit −$0.01 (billed $1.93; LiteLLM said $1.18). Rounds 10–29: 57
+  proposed, 48 judged (9 never produced values, vs 1/30 before), 11 passed, ~14.6 min and ~$0.10
+  per round (round 24: 59 min, 109 calls). Round 29 passed 4 window variants of one idea
+  (correlation 0.72–0.92 with each other): same-round passes were never compared, now fixed
+  (`alpha_runner_tw.dedupe_round`, D23). Report: Claude Doc "RD-Agent 因子研究 flash 長跑報告".
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None
@@ -186,6 +191,10 @@ pass → keep the library for Demo Day; v1.1 ships without new alphas.
 - 2026-10-24: first candidate not confirmed: `EarningsRevision_x_Cheapness_30_70` holdout t 1.3 at
   5 days (< 2). Its top-24 book still beat B0 by +30.6%/yr on the holdout, but with beta 0.49 and
   mostly in the July drop; plain 1/PE did better. Kept in the library, not exported.
+- 2026-10-25: all 12 cards checked (`data/alpha_tw/holdout_report.json`). Confirmed:
+  `LiquiditySize_Rank_20d` (holdout t 3.09, +42%/yr, beta 1.20; gains mostly May–June) and
+  `SalesYield_LiquiditySize_70_30` (t 2.63, +58.6%/yr, beta 0.72). Momentum-type cards reversed
+  (industry-relative strength consistency t −1.4 to −2.8). These two are the only export candidates.
 
 ### `[ ]` T10 · Export alpha cards — Implementer + contest team
 Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new

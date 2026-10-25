@@ -169,6 +169,10 @@ Upstream classes got overridable attributes; TW subclasses set them:
   `exp.result.loc[...]`. A runner whose `exp.result` is anything else needs its own history
   rendering (`proposal/alpha_proposal_tw.py`), or round 2 crashes with jinja2 `'dict object' has no
   attribute 'loc'`. A one-round canary never reaches that code (first 10-round run, 2026-10-24).
+- **LiteLLM's cost line undercounts DeepSeek**: on 2026-10-25 it said $1.18 for a run that cost
+  $1.93. For real spend read `GET https://api.deepseek.com/user/balance` before and after (a script
+  that sources `.env`; never print the key). When the balance hits 0 the loop dies with "Insufficient
+  Balance" after 10 retries per call; the last saved step resumes it.
 - **Resuming a loop: `--loop_n` is the total, not the remainder.** `LoopBase.run()` restarts
   `loop_idx` at 0 and each finished round uses up one count, so `--path <session>/7/4_record
   --loop_n 2` runs nothing; for rounds 8 and 9 pass `--loop_n 10`. With `checkout` (the default in
