@@ -23,7 +23,8 @@ Deeper docs (keep them current):
 | `docs/tw/AGENT_PLAYBOOK.md` | Team design for model sessions: roles, model routing, context budgets, comms protocol. |
 | `docs/tw/TODO_GRAPH.md` | Executable branching roadmap (gates, retry ladders, jump rules). **Pick work from here; move markers.** |
 | `docs/tw/ALPHA_FACTORY.md` | AI CUP 2026 alpha factory: contest-aligned panel, fast judge + gate, LLM look-ahead protocol, tournament notes. |
-| `docs/tw/ALPHA_REVIEWS.md` | Written review of every holdout-confirmed alpha (formula from code, audit, exposures, verdict). Required before use (D24). |
+| `docs/tw/ALPHA_REVIEWS.md` | Written review of every holdout-confirmed alpha (formula from code, audit, exposures, verdict). Required before use (D24). Written in Traditional Chinese. |
+| `docs/tw/reports/` | Reports for Jans and the team (campaign results, assessments), one dated file each, in Traditional Chinese Markdown. |
 | `data/DATA_AUDIT_REPORT.md` | Data-quality audit of the FinMind collection; cleaning rules rationale. |
 | `rdagent/scenarios/qlib/tw_data/MODEL_SMOKE_RESULTS.md` | Which qlib models pass plumbing on TW data. |
 

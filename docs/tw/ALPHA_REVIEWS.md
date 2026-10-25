@@ -1,62 +1,63 @@
-# Alpha reviews
+# 因子檢視紀錄
 
-> Every card that passes the holdout gets an entry here before anyone uses or exports it
-> (DECISIONS D24; Jans, 2026-10-25: 以後有通過保留期的都要寫出來加以檢視). A holdout pass is a
-> candidate, not an alpha, until it is reviewed. Holdout numbers in this file never go into an LLM
-> prompt.
+> 每張通過保留期的卡片，在任何人使用或匯出之前，都要在這裡留一筆檢視紀錄（DECISIONS D24；Jans，2026-10-25：「以後有通過保留期的都要寫出來加以檢視」）。
+>
+> 通過保留期只算候選，檢視完才算數。本檔的保留期數字不得放進任何 LLM 的提示。
 
-## How to review a card
+## 怎麼檢視一張卡片
 
-1. Run `python -m rdagent.scenarios.qlib.tw_data.alpha_review_tw --card <name>` (WSL, `rdagent`
-   env). It prints the numbers used below and writes `data/alpha_tw/reviews/<name>.json`.
-2. Read `data/alpha_tw/library/<name>/factor.py` and write the formula from the code, not from the
-   card text.
-3. Audit the code: every input known by the evening of t (revenue from its publication day, D17;
-   no `shift(-n)`, centered windows or whole-sample statistics); per-instrument shifts and rolling
-   windows on a date-sorted index; ranks per date inside the universe; units; NaN and zero handling.
-4. What it buys: the top 24 on the last day (names, industries, size ranks), and the holdout book's
-   industry mix and size percentile.
-5. What it is: correlation with plain exposures (size, liquidity, sales yield, earnings yield,
-   book-to-price, momentum, low volatility, revenue growth). Above 0.7 with one of them means the
-   card is mostly that exposure; then score the plain exposure on its own as well.
-6. Where the holdout money came from: monthly excess, beta, and the contest's official 150 names.
-7. Verdict: alpha / deliberate tilt / watch (paper-track) / reject, and the checks still open.
-8. Economic review (D25): answer the filled prompt `data/alpha_tw/reviews/<name>_prompt.md`
-   (template `tw_data/alpha_review_prompt_zh.md`) with a model other than the loop's, and paste the
-   A–F answer under the entry. Explanations formed after seeing the holdout are marked post hoc;
-   fixes they suggest are scored on the research window and confirmed only on new data.
+1. **跑檢視工具**：在 WSL 的 `rdagent` 環境執行 `python -m rdagent.scenarios.qlib.tw_data.alpha_review_tw --card <卡片名>`。它會印出下面用到的數字，並寫出 `data/alpha_tw/reviews/<卡片名>.json`。
+2. **從程式讀公式**：讀 `data/alpha_tw/library/<卡片名>/factor.py`，從程式寫出公式，不照卡片上的說明。
+3. **檢查程式**：
+   - 每個輸入在 t 日收盤前都要已知（營收從公告日起才能用，D17）。
+   - 不能有 `shift(-n)`、置中的視窗，或用到全部樣本的統計量。
+   - 位移和滾動視窗要依個股計算，資料要先依日期排序。
+   - 排名要每天在股票池內做。
+   - 確認單位，以及缺值和 0 的處理。
+4. **它買什麼**：最後一天的前 24 名（名稱、產業、市值排名），以及保留期持股的產業分布和市值百分位。
+5. **它其實是什麼**：
+   - 算它跟常見風格的相關：規模、流動性、營收殖利率、盈餘殖利率、淨值市價比、動能、低波動、營收成長。
+   - 跟其中一個的相關超過 0.7，代表這張主要就是那個風格；這時也要把那個風格單獨拿出來評分。
+6. **保留期的錢從哪裡來**：看每月超額、beta，以及只用比賽官方 150 檔時的結果。
+7. **結論**：選股訊號、刻意的風格傾斜、觀察（紙上追蹤）或不用，並列出還沒做的檢查。
+8. **經濟推理審查（D25）**：
+   - 用跟迴圈不同的模型，回答已填好的提示 `data/alpha_tw/reviews/<卡片名>_prompt.md`（範本是 `tw_data/alpha_review_prompt_zh.md`），把 A–F 的答案貼在該筆紀錄下。
+   - 看過保留期才提出的解釋，要標成事後假說。
+   - 它建議的修正只能在研究期評分，要等新資料才算確認。
 
-## LiquiditySize_Rank_20d — reviewed 2026-10-25
+## LiquiditySize_Rank_20d（大型＋流動性）— 2026-10-25 檢視
 
-Accepted in round 11 of the flash campaign (TODO T9); holdout-confirmed (G4).
+flash 長跑第 11 輪通過（TODO T9），保留期確認（G4）。
 
-**Formula (from the code):** score = 0.5 × rank(log market value) + 0.5 × rank(−ILLIQ20), with
-ranks taken per date inside the point-in-time universe. ILLIQ20 is the 20-day mean of
-|close-to-close return| ÷ traded amount (NT$), `min_periods=20`, amount ≤ 0 treated as missing.
-Higher = buy.
+**公式（從程式讀出）**：
+- 分數 = 0.5 × 排名(log 市值) + 0.5 × 排名(−ILLIQ20)，排名每天在當時的股票池內做。
+- ILLIQ20 = 近 20 日「|收盤報酬| ÷ 成交金額（新台幣）」的平均，`min_periods=20`；成交金額 ≤ 0 當缺值。
+- 分數越高越值得買。
 
-**Audit:** inputs are known at the close of t (`$close` back-adjusted, `$amount` raw NT$,
-`$market_value`, `$in_universe`). Per-instrument `shift(1)` and `rolling(20)` run on a date-sorted
-index; ranks are per date within the universe. Nothing looks ahead.
+**程式檢查**：
+- 輸入在 t 日收盤時都已知：`$close` 是還原價，`$amount` 是原始成交金額，另外用到 `$market_value`、`$in_universe`。
+- 依個股的 `shift(1)` 和 `rolling(20)`，都在依日期排序的資料上執行；排名每天在股票池內做。
+- 沒有偷看未來。
 
-| Score | 5-day t | 24-day median excess | Annualized excess | Beta |
+| 評分對象 | 5 日 t | 24 日超額中位數 | 年化超額 | beta |
 |---|---|---|---|---|
-| Card, research | 3.01 | +0.14% | +0.8% | 0.98 |
-| Card, holdout | 3.09 | +1.23% | +42.0% | 1.20 |
-| Card, holdout, official 150 | 2.29 | +0.91% | +31.1% | 1.24 |
-| Size alone, research | 2.46 | −0.15% | −2.0% | 0.79 |
-| Size alone, holdout | 3.53 | +1.45% | +28.1% | 1.10 |
+| 卡片，研究期 | 3.01 | +0.14% | +0.8% | 0.98 |
+| 卡片，保留期 | 3.09 | +1.23% | +42.0% | 1.20 |
+| 卡片，保留期，只用官方 150 檔 | 2.29 | +0.91% | +31.1% | 1.24 |
+| 單純市值，研究期 | 2.46 | −0.15% | −2.0% | 0.79 |
+| 單純市值，保留期 | 3.53 | +1.45% | +28.1% | 1.10 |
 
-**What it is:** correlation 0.92 (research) and 0.94 (holdout) with log market value, and the same
-with its liquidity half; no other exposure above 0.22. The top 24 on 2026-10-22 were the largest
-names (2330, 2454, 2308, 2317, 1303, 2303, 3711, …); the holdout book sat at the 90th size
-percentile, 30% semiconductors and 26% electronic components. Holdout excess by month: May +12.1%,
-June +6.5%, then −1.8%, −1.2%, +0.9%, −1.0%.
+**它其實是什麼**：
+- 跟 log 市值的相關是 0.92（研究期）和 0.94（保留期），跟流動性那一半也一樣；跟其他風格的相關都不超過 0.22。
+- 2026-10-22 的前 24 名就是最大的那一群（2330、2454、2308、2317、1303、2303、3711……）。
+- 保留期持股平均落在市值第 90 百分位，半導體佔 30%、電子零組件佔 26%。
+- 保留期每月超額：5 月 +12.1%、6 月 +6.5%，之後依序是 −1.8%、−1.2%、+0.9%、−1.0%。
 
-**Verdict: a size tilt, not stock selection.** Plain size failed the research gate; the card passed
-on its liquidity half, and the holdout paid for the mega-cap run of May–June 2026. Use it only as
-an explicit team decision to lean toward the largest names (beta about 1.2). Open: whether the
-size premium holds over a 24-day contest; the active-share effect of holding the index leaders.
+**結論：規模傾斜，不是選股能力。**
+- 單純市值沒過研究期門檻；這張能過，是靠流動性那一半。
+- 保留期的錢來自 2026 年 5–6 月的權值股行情。
+- 只能當成隊伍「刻意偏向最大型股」的決定來用（beta 約 1.2）。
+- 待確認：規模溢酬在 24 天的比賽裡是否成立；持有權值龍頭對主動比重（Active Share）的影響。
 
 ### 經濟推理審查（A–F；審查者 Claude，2026-10-25；輸入 `reviews/LiquiditySize_Rank_20d_prompt.md`）
 
@@ -86,48 +87,50 @@ size premium holds over a 24-day contest; the active-share effect of holding the
 - 待驗證：實驗 1–3，以及比賽期間的實盤。
 - 事後假說（看過保留期）：5–6 月的超額來自當時的大型股行情。
 
-## SalesYield_LiquiditySize_70_30 — reviewed 2026-10-25
+## SalesYield_LiquiditySize_70_30（營收殖利率＋大型流動）— 2026-10-25 檢視
 
-Accepted in round 18 of the flash campaign; holdout-confirmed.
+flash 長跑第 18 輪通過，保留期確認。
 
-**Formula (from the code):** score = 0.7 × rank(12 × latest monthly revenue ÷ market value) +
-0.3 × [0.5 × rank(log market value) + 0.5 × rank(−ILLIQ20)] − 1, ranks per date inside the
-universe, values outside the universe masked. Higher = buy.
+**公式（從程式讀出）**：
+- 分數 = 0.7 × 排名(12 × 最新月營收 ÷ 市值) + 0.3 × [0.5 × 排名(log 市值) + 0.5 × 排名(−ILLIQ20)] − 1。
+- 排名每天在股票池內做，股票池外的值遮掉。
+- 分數越高越值得買。
 
-**Audit:** `$rev` is the latest published monthly revenue (known from its `create_time`, else the
-10th of the next month; D17), so there is no look-ahead; the liquidity code is the one above.
-Weakness: one month × 12, so seasonal or lumpy revenue reshuffles the ranking every month; a
-trailing-12-month version is untested. Revenue and market value are both NT$, and the scale does
-not matter for ranks.
+**程式檢查**：
+- `$rev` 是最新已公布的月營收：有 `create_time` 就從那天起可用，沒有就用次月 10 日（D17），所以沒有偷看未來。流動性的程式跟上一張相同。
+- 弱點：只用單月營收乘 12，季節性強或出貨不平均的公司，排名會每月重排。近 12 個月加總的版本還沒測。
+- 營收和市值都是新台幣，尺度不影響排名。
 
-| Score | 5-day t | 24-day median excess | Annualized excess | Beta |
+| 評分對象 | 5 日 t | 24 日超額中位數 | 年化超額 | beta |
 |---|---|---|---|---|
-| Card, research | 3.15 | +0.40% | +6.1% | 0.85 |
-| Card, holdout | 2.63 | +2.50% | +58.6% | 0.72 |
-| Card, holdout, official 150 | 2.54 | +1.66% | +49.6% | 0.76 |
-| Sales yield alone, research | 2.74 | +0.41% | +5.6% | 0.84 |
-| Sales yield alone, holdout | 2.28 | +1.48% | +53.5% | 0.64 |
+| 卡片，研究期 | 3.15 | +0.40% | +6.1% | 0.85 |
+| 卡片，保留期 | 2.63 | +2.50% | +58.6% | 0.72 |
+| 卡片，保留期，只用官方 150 檔 | 2.54 | +1.66% | +49.6% | 0.76 |
+| 單純營收殖利率，研究期 | 2.74 | +0.41% | +5.6% | 0.84 |
+| 單純營收殖利率，保留期 | 2.28 | +1.48% | +53.5% | 0.64 |
 
-**What it is:** correlation 0.94 with plain sales yield; in the holdout also 0.63 with earnings
-yield, 0.61 with book-to-price and 0.43 with low volatility; momentum about 0. It buys high-revenue,
-thin-margin names: AI-server ODMs (2317, 2382, 3231, 6669, 2356, 2376), distributors (3036, 3702,
-2347), shipping and steel. Computers and peripherals were 34% of the holdout book, at the 60th size
-percentile. Holdout excess by month: +9.9%, −0.9%, +11.1%, −7.1%, +0.7%, +3.8%; it won the July
-drop and lost the August rebound, like a value or low-beta book.
+**它其實是什麼**：
+- 跟單純營收殖利率的相關是 0.94。
+- 在保留期，它還跟盈餘殖利率（0.63）、淨值市價比（0.61）、低波動（0.43）相關；跟動能約為 0。
+- 它買的是營收大、毛利薄的公司：
+  - AI 伺服器代工：2317、2382、3231、6669、2356、2376
+  - 通路：3036、3702、2347
+  - 航運和鋼鐵
+- 保留期持股中，電腦及週邊設備業佔 34%，平均落在市值第 60 百分位。
+- 保留期每月超額：+9.9%、−0.9%、+11.1%、−7.1%、+0.7%、+3.8%。7 月大跌時贏、8 月反彈時輸，表現像價值或低 beta 的組合。
 
-**Margin check (2026-10-25):** sales yield = earnings yield ÷ net margin, so a thin margin looks
-like a low price. Over 70 month ends (about 140 profitable names each), −log(net margin) explains
-61% of the cross-sectional variance of log sales yield and log earnings yield only 21%; margins
-spread about 9× across ±1 standard deviation, earnings yields 4.7×. On 2026-10-22 Wistron's sales
-yield was 70× TSMC's while its P/E was only 1.8× lower (15.1 vs 27.6); the rest is margin (about
-0.9% vs 36%). Ranked within industries, sales yield drops from research t 2.74 to 2.13 (holdout
-2.34), so part of the plain signal is exposure to thin-margin industries.
+**淨利率檢查（2026-10-25）**：營收殖利率 = 盈餘殖利率 ÷ 淨利率，所以淨利率低看起來就像價格低。
+- 70 個月底（每次約 140 檔有獲利的公司）的資料裡：−log(淨利率) 能解釋 log 營收殖利率橫斷面差異的 61%，log 盈餘殖利率只能解釋 21%。
+- 淨利率在 ±1 個標準差之間差約 9 倍，盈餘殖利率只差約 4.7 倍。
+- 例子：2026-10-22 緯創的營收殖利率是台積電的 70 倍，本益比卻只低 1.8 倍（15.1 對 27.6），其餘是淨利率的差距（約 0.9% 對 36%）。
+- 改成同產業內排名後，營收殖利率的研究期 t 從 2.74 降到 2.13（保留期 2.34）。所以原版的訊號有一部分來自薄利產業的曝險。
 
-**Verdict: candidate for a defensive or value sleeve; not yet an export.** Before use, score two
-variants on the research window: trailing-12-month revenue, and a cap of about 25% per industry.
-They were proposed after the holdout was seen, so the holdout cannot confirm them; only new data
-(the contest period) can. Plain sales yield did not pass the research gate on its own, and the
-holdout coincided with the AI-server rally, so the evidence covers one regime.
+**結論：防守或價值部位的候選，還不能匯出。**
+- 使用前，先在研究期評分兩個變形：
+  - 近 12 個月營收加總。
+  - 單一產業比重上限約 25%。
+- 這兩個變形是看過保留期之後才提出的，所以保留期不能拿來確認它們，只能等新資料（比賽期間）。
+- 單純營收殖利率自己沒過研究期門檻，而保留期剛好碰上 AI 伺服器行情，所以目前的證據只涵蓋一種行情。
 
 ### 經濟推理審查（A–F；審查者 Claude，2026-10-25；輸入 `reviews/SalesYield_LiquiditySize_70_30_prompt.md`）
 

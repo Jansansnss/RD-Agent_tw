@@ -157,6 +157,7 @@ dmypy.json
 
 # reports
 reports/
+!docs/tw/reports/
 
 # git_ignore_folder
 git_ignore_folder/
