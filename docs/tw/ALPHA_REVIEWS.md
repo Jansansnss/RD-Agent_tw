@@ -83,6 +83,14 @@ thin-margin names: AI-server ODMs (2317, 2382, 3231, 6669, 2356, 2376), distribu
 percentile. Holdout excess by month: +9.9%, −0.9%, +11.1%, −7.1%, +0.7%, +3.8%; it won the July
 drop and lost the August rebound, like a value or low-beta book.
 
+**Margin check (2026-10-25):** sales yield = earnings yield ÷ net margin, so a thin margin looks
+like a low price. Over 70 month ends (about 140 profitable names each), −log(net margin) explains
+61% of the cross-sectional variance of log sales yield and log earnings yield only 21%; margins
+spread about 9× across ±1 standard deviation, earnings yields 4.7×. On 2026-10-22 Wistron's sales
+yield was 70× TSMC's while its P/E was only 1.8× lower (15.1 vs 27.6); the rest is margin (about
+0.9% vs 36%). Ranked within industries, sales yield drops from research t 2.74 to 2.13 (holdout
+2.34), so part of the plain signal is exposure to thin-margin industries.
+
 **Verdict: candidate for a defensive or value sleeve; not yet an export.** Before use, score two
 variants on research and holdout: trailing-12-month revenue, and a cap of about 25% per industry.
 Plain sales yield did not pass the research gate on its own, and the holdout coincided with the
