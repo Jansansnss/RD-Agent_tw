@@ -7,7 +7,9 @@ report research / holdout / official-list metrics, the correlation with plain ex
 liquidity, value, momentum, low volatility, revenue growth), the top 24 names on the last day with
 industry and size rank, and the holdout book's industry mix, size percentile and monthly excess.
 The code audit (look-ahead, timing, units) stays a human step; record it with these numbers in
-docs/tw/ALPHA_REVIEWS.md.
+docs/tw/ALPHA_REVIEWS.md. It also writes `reviews/<card>_prompt.md`: the reviewer prompt
+(alpha_review_prompt_zh.md, DECISIONS D25) with its inputs filled in, for the A-F economic review
+by a model other than the loop's.
 
     python -m rdagent.scenarios.qlib.tw_data.alpha_review_tw                  # every confirmed card
     python -m rdagent.scenarios.qlib.tw_data.alpha_review_tw --card LiquiditySize_Rank_20d
@@ -25,14 +27,19 @@ try:
     from rdagent.scenarios.qlib.tw_data import alpha_eval_tw as ev
     from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
     from rdagent.scenarios.qlib.tw_data.alpha_holdout_tw import run_factor
+    from rdagent.scenarios.qlib.tw_data.dump_alpha_panel_tw import CODER_DROP
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import alpha_eval_tw as ev
     from _paths import DATA_DIR
     from alpha_holdout_tw import run_factor
+    from dump_alpha_panel_tw import CODER_DROP
 
 ALPHA_DIR = DATA_DIR / "alpha_tw"
 MOSTLY = 0.7  # |correlation| above this with a plain exposure: the card is mostly that exposure
+PROMPT = Path(__file__).resolve().parent / "alpha_review_prompt_zh.md"
+BOOK_RULE = ("分數越高越值得買。每天在當月的 150 檔（每月底依指數權重或市值重選）裡排名，隔天用成交均價買前 24 名、"
+             "等權；每 5 個交易日調整，仍在前 36 名的持股留著；買賣各付 0.1425% 手續費，賣出另付 0.3% 證交稅。")
 
 
 def exposures(panel: pd.DataFrame) -> dict[str, pd.Series]:
@@ -114,6 +121,51 @@ def review(name: str, panel: pd.DataFrame, exp: dict[str, pd.Series], sid2code: 
     return out
 
 
+def scenario_text() -> tuple[str, str]:
+    """The contest background and the field and timing description the loop's LLM saw."""
+    from rdagent.scenarios.qlib.experiment.alpha_tw_experiment import _BACKGROUND, _SOURCE_DATA
+
+    return _BACKGROUND.strip(), _SOURCE_DATA.strip()
+
+
+def fill_prompt(r: dict, card: dict, code: str, fields: list[str]) -> str:
+    """The reviewer prompt with its 【輸入】 section filled from the card, its code and the review."""
+    background, source = scenario_text()
+    fmt = lambda m: (f"5 日 t {m['t5']:+.2f}、20 日 t {m['t20']:+.2f}；24 日超額中位數 {m['median_24d']:+.2%}"  # noqa: E731
+                     f"（最差 10% {m['p10_24d']:+.2%}）；年化超額 {m['ann_excess']:+.1%}；beta {m['beta']:.2f}；"
+                     f"每次調整換手 {m['turnover']:.0%}")
+    research, holdout = ev.WINDOWS["research"], ev.WINDOWS["holdout"]
+    hb = r["holdout_book"]
+    lines = [
+        "【輸入】",
+        "- 投資目標與預測期間：AI CUP 2026 基金經理人競賽。在 150 檔大型股裡做多約 23 檔，隔天以成交均價成交，"
+        "比賽 24 個交易日，只看最終淨值排名。因子用 5 日與 20 日報酬評估。迴圈裡的 LLM 看到的情境說明：",
+        "```", background, "```",
+        f"- 候選因子公式：{card.get('formulation')}",
+        f"  程式（data/alpha_tw/library/{r['card']}/factor.py）：",
+        "```python", code.strip(), "```",
+        f"- 各變數定義、資料期間與可用時間：研究期 {research[0]} 至 {research[1]}；保留期 {holdout[0]} 起，"
+        "迴圈裡的 LLM 從未看過。欄位與時間規則（迴圈 LLM 看到的版本）：",
+        "```", source, "```",
+        f"- 排名方向與選股方式：{BOOK_RULE}",
+        f"- 原始經濟解釋（迴圈 LLM 寫的）：{card.get('hypothesis')}",
+        f"  因子說明：{card.get('description')}",
+        f"- 可取得的資料：{', '.join(fields)}",
+        "- 實驗結果：",
+        f"  - 研究期：{fmt(r['metrics']['research'])}",
+        f"  - 保留期（看過保留期後提出的解釋屬事後假說）：{fmt(r['metrics']['holdout'])}",
+        f"  - 保留期，只用比賽官方 150 檔：{fmt(r['metrics']['holdout, official list'])}",
+        "  - 保留期每月超額：" + "、".join(f"{k} {v:+.1%}" for k, v in hb["monthly_excess"].items()),
+        f"  - 保留期持股：平均市值百分位 {hb['size_percentile']:.2f}；產業 "
+        + "、".join(f"{k} {v:.0%}" for k, v in hb["industries"]),
+        "  - 最後一天的前 24 名：" + "、".join(f"{t['code']} {t['name']}（{t['industry']}，市值第 {t['size_rank']} 名）"
+                                         for t in r["top24_last_day"]),
+        "- 與常見風格的相關（研究期｜保留期）：" + "；".join(f"{k} {v['research']:+.2f}｜{v['holdout']:+.2f}"
+                                               for k, v in r["exposure_corr"].items()),
+    ]
+    return PROMPT.read_text(encoding="utf-8").replace("<!-- INPUTS -->", "\n".join(lines))
+
+
 def show(r: dict) -> None:
     print(f"\n=== {r['card']}  (HOLDOUT numbers: never paste into an LLM prompt)")
     for label, m in r["metrics"].items():
@@ -147,13 +199,20 @@ def main() -> None:
     sid2code = pd.read_csv(ALPHA_DIR / "coder_map.csv", dtype=str).set_index("sid")["instrument"]
     meta = pd.read_csv(ALPHA_DIR / "instruments_meta.csv", dtype={"instrument": str}).set_index("instrument")
     exp = exposures(panel)
+    meta_fields = json.loads((ALPHA_DIR / "panel_meta.json").read_text(encoding="utf-8"))["fields"]
+    fields = [f for f in meta_fields if f not in CODER_DROP]  # what the loop's coder could read
     out_dir = ALPHA_DIR / "reviews"
     out_dir.mkdir(exist_ok=True)
     for name in names:
         r = review(name, panel, exp, sid2code, meta)
         show(r)
         (out_dir / f"{name}.json").write_text(json.dumps(r, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-    print(f"\nWrote {out_dir}. Record the code audit and a verdict in docs/tw/ALPHA_REVIEWS.md.")
+        folder = ALPHA_DIR / "library" / name
+        card = json.loads((folder / "card.json").read_text(encoding="utf-8"))
+        prompt = fill_prompt(r, card, (folder / "factor.py").read_text(encoding="utf-8"), fields)
+        (out_dir / f"{name}_prompt.md").write_text(prompt, encoding="utf-8")
+    print(f"\nWrote {out_dir} (numbers and filled reviewer prompts). Record the code audit, the A-F review "
+          "and a verdict in docs/tw/ALPHA_REVIEWS.md.")
 
 
 if __name__ == "__main__":

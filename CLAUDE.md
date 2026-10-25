@@ -97,7 +97,9 @@ correlation references only, D22). Its idea file is `data/alpha_ideas.md` (local
 `factor_ideas.md`; research-period numbers only). Its research/holdout split is
 `alpha_eval_tw.WINDOWS` (D21), not the date window below. Holdout check:
 `tw_data/alpha_holdout_tw.py`, never inside the loop. Every confirmed card then gets
-`tw_data/alpha_review_tw.py` and an entry in `docs/tw/ALPHA_REVIEWS.md` before anyone uses it (D24).
+`tw_data/alpha_review_tw.py` and an entry in `docs/tw/ALPHA_REVIEWS.md` before anyone uses it (D24),
+including an A–F review answered from the filled `data/alpha_tw/reviews/<card>_prompt.md` by a model
+other than the loop's (D25).
 
 Date window (all TW settings): train 2021-01-01..2023-12-31, valid 2024, test 2025-01-01..rolling
 `test_end`. `test_end` MUST stay ≤ (qlib calendar end − 1 trading day) — see pitfalls.

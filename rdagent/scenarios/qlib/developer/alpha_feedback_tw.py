@@ -35,9 +35,14 @@ Factors and the judge's verdict (research period only; t = Newey-West t-statisti
 
 Factors already accepted in the library: {library}
 
-Write the four fields. "New Hypothesis" must be one concrete, testable idea that is different from
-the factors above; say which signal family it belongs to and why it could rank the top ~20 stocks
-better over 5 to 20 days after costs."""
+Write the four fields. In "Feedback for Hypothesis", for each factor that passed or reached t >= 2
+at 5 or 20 days, say in one or two sentences what the formula literally measures, what the
+hypothesis claims it measures, and the most important condition missing between the two (for
+example a comparison across industries with different margins, one month of a seasonal series, or
+a size or industry proxy). A good backtest does not prove the mechanism. "New Hypothesis" must be
+one concrete, testable idea: either the smallest change that tests the missing condition you
+named, or a new signal family. Say which, and why it could rank the top ~20 stocks better over 5
+to 20 days after costs."""
 
 
 def _slug(name: str) -> str:

@@ -155,7 +155,9 @@ the team's few pre-registered hypotheses; t ≥ 3 is for the loop's many trials.
 A confirmed card is still a candidate. Before anyone uses it, it gets a written review in
 `ALPHA_REVIEWS.md` (D24): formula from the code, a code audit, what it buys, its correlation with
 plain exposures, the official-list check and a verdict. The first two confirmations were a size
-tilt and a sales-yield tilt, which the gate cannot tell apart from an alpha.
+tilt and a sales-yield tilt, which the gate cannot tell apart from an alpha. The entry includes an
+A–F economic review from `tw_data/alpha_review_prompt_zh.md`, answered by a model other than the
+loop's; the loop's feedback carries a three-sentence version of the same check (D25).
 
 ### Baseline verdict, current split (2026-10-24, D21)
 

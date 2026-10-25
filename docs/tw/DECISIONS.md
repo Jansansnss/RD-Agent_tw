@@ -209,6 +209,22 @@ numbers. Why: the first two confirmations were a size tilt and a sales-yield til
 with the plain exposure each), which the gate cannot see. Revisit: extend the exposure list when a
 review finds a new disguise.
 
+**D25 — Where the factor-reviewer prompt sits** *(2026-10-25)*
+Jans supplied a reviewer prompt (what the formula measures vs what is claimed, necessary
+conditions, a counterexample, mixed effects, the smallest fix, discriminating experiments; output
+A–F). The full version is `tw_data/alpha_review_prompt_zh.md`, plus two project rules (the holdout
+confirms once; research and holdout numbers are quoted apart). `alpha_review_tw.py` fills its inputs
+for each confirmed card, and a model other than the loop's (Claude) writes the A–F review into
+ALPHA_REVIEWS.md. A three-sentence version sits in the feedback prompt (`alpha_feedback_tw.py`):
+what the formula measures, what the hypothesis claims, the missing condition, so the next idea can
+test it. Review lessons go back into `data/alpha_ideas.md` only if they rest on research-period data.
+Not at hypothesis generation or coding: a screen that rejects weak stories would have flagged both
+holdout-confirmed cards (a flipped size premium; thin margins read as cheap), and LLMs judge factor
+quality poorly without a backtest (AlphaBench, ICLR 2026). The waste is in code repair, not ideas:
+76 of the 78 factors that ever coded did so within two repair passes, while passes 3–6 on the 9
+that never coded took about 60% of the flash run's calls and time. Revisit if the in-loop critique
+slows rounds or proposals parrot it without better scores.
+
 ---
 
 *Template for new entries:*
