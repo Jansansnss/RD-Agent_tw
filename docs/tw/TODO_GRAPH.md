@@ -195,6 +195,10 @@ pass → keep the library for Demo Day; v1.1 ships without new alphas.
   `LiquiditySize_Rank_20d` (holdout t 3.09, +42%/yr, beta 1.20; gains mostly May–June) and
   `SalesYield_LiquiditySize_70_30` (t 2.63, +58.6%/yr, beta 0.72). Momentum-type cards reversed
   (industry-relative strength consistency t −1.4 to −2.8). These two are the only export candidates.
+- 2026-10-25 (D24): no export without an `ALPHA_REVIEWS.md` entry. Both reviewed:
+  `LiquiditySize_Rank_20d` is a size tilt (correlation 0.94 with log market value; a team decision,
+  not an alpha); `SalesYield_LiquiditySize_70_30` is mostly sales yield, a value/defensive candidate
+  pending a trailing-12-month revenue version and an industry cap.
 
 ### `[ ]` T10 · Export alpha cards — Implementer + contest team
 Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new

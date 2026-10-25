@@ -62,6 +62,10 @@ def main() -> None:
         print(f"{card['name']:<40} {h:>2}d IC {rows[-1]['ic']:+.3f} (t {rows[-1]['t']:+.1f}) "
               f"24d median {rows[-1]['window_median']:+.2%}  {'PASS' if passed else 'fail ' + '; '.join(reasons)}")
     (ALPHA_DIR / "holdout_report.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    confirmed = [r["name"] for r in rows if r["passed"]]
+    if confirmed:
+        print(f"Confirmed: {confirmed}. Each needs a written review before use (D24): run "
+              "python -m rdagent.scenarios.qlib.tw_data.alpha_review_tw, then add docs/tw/ALPHA_REVIEWS.md entries.")
 
 
 if __name__ == "__main__":

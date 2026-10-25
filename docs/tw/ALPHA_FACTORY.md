@@ -55,6 +55,8 @@ factor_ideas.md + "which pod is weak"
 ④ Gate in code, alpha_eval_tw.gate() ──fail──► reject log (the LLM sees the reasons)
         │ pass
 ⑤ Alpha library ── holdout check, once per batch, by a script outside the loop
+        │ confirmed
+⑤b Written review of each confirmed card: alpha_review_tw.py + ALPHA_REVIEWS.md (D24)
         │
 ⑥ Alpha card → pod module in AI-cup-etf-agent (plain pandas, no RD-Agent import)
 ```
@@ -149,6 +151,11 @@ judged alpha is logged, so the number of trials is known when results are report
 The holdout only **confirms** a research pass (`HOLDOUT_GATE`): t ≥ 2.0, same sign, 24-day median
 > 0, no year count (it is under a year long). The v2 plan's own thresholds (t > 2) stay right for
 the team's few pre-registered hypotheses; t ≥ 3 is for the loop's many trials.
+
+A confirmed card is still a candidate. Before anyone uses it, it gets a written review in
+`ALPHA_REVIEWS.md` (D24): formula from the code, a code audit, what it buys, its correlation with
+plain exposures, the official-list check and a verdict. The first two confirmations were a size
+tilt and a sales-yield tilt, which the gate cannot tell apart from an alpha.
 
 ### Baseline verdict, current split (2026-10-24, D21)
 

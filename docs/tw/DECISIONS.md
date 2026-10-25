@@ -200,6 +200,15 @@ showed research t does not predict holdout t, so this is a tie-break, not a qual
 round-29 cards stay in the library as correlation references (none passed the holdout). Revisit
 with the "replaces a card" rule (D22).
 
+**D24 — Every holdout pass gets a written review before it is used** *(2026-10-25)*
+Jans: 以後有通過保留期的都要寫出來加以檢視. A confirmed card is a candidate until
+`docs/tw/ALPHA_REVIEWS.md` has its entry: the formula read from `factor.py`, a code audit (timing,
+look-ahead, units), what it buys, its correlation with plain exposures, the official-list check, the
+monthly pattern of the holdout excess, and a verdict. `tw_data/alpha_review_tw.py` produces the
+numbers. Why: the first two confirmations were a size tilt and a sales-yield tilt (correlation 0.94
+with the plain exposure each), which the gate cannot see. Revisit: extend the exposure list when a
+review finds a new disguise.
+
 ---
 
 *Template for new entries:*
