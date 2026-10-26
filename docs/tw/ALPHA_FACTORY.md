@@ -86,7 +86,7 @@ Rule: every value at `(datetime, instrument)` was known by the evening of `datet
 | `$rev $rev_yoy $rev_3m_yoy $rev_12m_yoy $rev_accel $rev_age` | `month_revenue.csv` | the 10th of the next month (legal deadline) |
 | `$in_universe $is_twse` | month-end index weights (from 2024-10) or market caps; listing dates | from the next trading day |
 | `$in_official` | `--official_list` (the contest's 150) | — |
-| `$industry_id` | `industry_chain.csv` (FinMind 產業鏈): one primary chain industry per stock, `chain_groups_tw` (D30); `stock_info.csv` category for stocks without chain rows | static, 2026-10 snapshot |
+| `$industry_id` | one group per stock (`chain_groups_tw`, D30–D31): the team's V2 product-exposure family (`product_groups_v2.csv`, from full_classification_relations_T20261021_preview.pdf) where the stock has one, else its primary FinMind 產業鏈 industry (`industry_chain.csv`), else its `stock_info.csv` category | static, 2026-10 snapshot (V2 provisional) |
 
 - **Universe:** at each month end, the top 100 TWSE and top 50 TPEx common stocks (4-digit codes
   starting 1–9, no TDRs, at least 60 trading days listed), held until the next month end. Ranking

@@ -69,8 +69,10 @@ Monthly revenue, already lagged to its publication date (no extra lag needed):
 Universe and groups:
   $in_universe  1 if the stock is in the 150-stock universe that month (only these rows are scored)
   $is_twse      1 = main board, 0 = second board (only on universe rows)
-  $industry_id  integer industry group code, one per stock, from the industry value chain
-                (semiconductors, computers and peripherals, cloud computing, PCBs, ...); for
+  $industry_id  integer group code, one per stock: the stock's product-exposure group where it
+                has one (optical communications, memory, PCB, high-speed interconnect,
+                semiconductor equipment, test interfaces), otherwise its industry value-chain
+                group (semiconductors, computers and peripherals, finance, ...); for
                 industry-relative factors
 
 == Notes ==

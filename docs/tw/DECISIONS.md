@@ -273,6 +273,21 @@ within groups rose from t 2.13 to 2.35. Cost: the tags are a 2026-10 snapshot, s
 2021–2026 assume industries did not change, and themes such as 雲端運算 or 人工智慧 were tagged with
 hindsight. Revisit with dated chain snapshots for point-in-time groups.
 
+**D31 — Groups follow the team's full classification: V2 product groups first** *(2026-10-26)*
+Jans, two hours after D30: 更新改為 full_classification_relations_T20261021_preview.pdf 為主；過去有關
+產業分類的測試要重新跑. Part 1 of that PDF is a product-exposure taxonomy (V2, provisional): 6
+families / 38 sub-groups, 217 memberships of 171 stocks (光通訊, 記憶體, PCB, 高速電互連, 半導體設備,
+測試介面); part 2 is the industry chain of D30. `chain_groups_tw --product_pdf` parses the member
+table (the counts match the PDF's own: 217 / 171 / 38) into `product_groups_v2.csv`; a stock with a
+V2 membership takes its family ("V2:PCB"; most sub-groups, ties to the more specific family, so 旺矽
+→ 測試介面), every other stock keeps its D30 chain group. 62 of the panel's 305 stocks get a V2
+family; 42 groups; in the latest universe 47 of 150 names have a V2 family and 半導體 keeps 29. Re-run as for D30
+(team ideas with and without multi-membership, 73 judged loop factors, holdout, reviews): no new
+library card (two research passes appear but correlate 0.79 / 0.71 with existing cards); sales yield
+ranked within groups now has research t 2.92 (raw 2.74), holdout 1.68 (raw 2.28). Cost: stronger
+hindsight than D30; the six V2 families are the 2025-26 AI-hardware themes, and their members were
+14% of the universe in 2021 and 29% in 2026. Revisit when the frozen (non-preview) V2 is published.
+
 ---
 
 *Template for new entries:*

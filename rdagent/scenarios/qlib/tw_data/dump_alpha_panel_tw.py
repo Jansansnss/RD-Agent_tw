@@ -24,7 +24,7 @@ Outputs (default data/alpha_tw/):
                         ever in the point-in-time universe (plus --official_list)
   universe_pit.csv      month_end, instrument, market, rank, market_value
   instruments_meta.csv  instrument, name, market, industry (exchange), industry_id, group
-  groups_chain.csv      primary industry-chain group per stock (chain_groups_tw, D30)
+  groups_chain.csv      primary group per stock: V2 product group, else industry chain (chain_groups_tw, D30-D31)
   panel_meta.json       sources, date range, VWAP coverage
   coder/daily_pv.h5     for the alpha loop's LLM coder (DECISIONS D16): stock codes replaced by
                         S001.., research window only, no contest-list flag
@@ -50,14 +50,14 @@ import pandas as pd
 try:
     from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
     from rdagent.scenarios.qlib.tw_data.alpha_eval_tw import WINDOWS
-    from rdagent.scenarios.qlib.tw_data.chain_groups_tw import CHAIN_CSV, load_chain, primary_groups
+    from rdagent.scenarios.qlib.tw_data.chain_groups_tw import CHAIN_CSV, load_chain, load_products, primary_groups
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _paths import DATA_DIR
     from alpha_eval_tw import WINDOWS
-    from chain_groups_tw import CHAIN_CSV, load_chain, primary_groups
+    from chain_groups_tw import CHAIN_CSV, load_chain, load_products, primary_groups
 
 # 4-digit codes starting 1-9 are common stocks (00xx = ETFs); 91xx are TDRs, not stocks.
 STOCK_CODE = re.compile(r"^[1-9]\d{3}$")
@@ -362,8 +362,8 @@ def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
     panel = panel.join(membership(universe, panel.index))
     panel["$in_official"] = panel.index.get_level_values("instrument").isin(official).astype(float)
     meta = meta.loc[meta.index.isin(codes)].copy()
-    if CHAIN_CSV.exists():  # groups from the industry chain (D30); exchange categories otherwise
-        groups = primary_groups(meta, load_chain(CHAIN_CSV))
+    if CHAIN_CSV.exists():  # V2 product groups, then the industry chain (D30, D31); exchange categories otherwise
+        groups = primary_groups(meta, load_chain(CHAIN_CSV), load_products())
         meta["group"], meta["industry_id"] = groups["group"], groups["group_id"]
     else:
         print(f"WARN: {CHAIN_CSV} missing; $industry_id falls back to exchange categories")
