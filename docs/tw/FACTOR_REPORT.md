@@ -153,7 +153,7 @@
    - 選項：`--horizon` 改宣告持有期；`--holdout none|status|full`；`--as_of YYYY-MM-DD` 把資料截在某天，做那天看得到的報告（回測大腦時要用）。
    - 輸出在 `data/alpha_tw/reports/<id>/`（不進 git，隨時可以重算）：`report.json`、`report.html`、`prompt_stage2.md`；沒給宣告時另有預先填好的 `declaration.yaml`。一次約 1 分鐘、0.6 GB 記憶體。
 3. **第二階段（作者或任何 LLM）**：把 `prompt_stage2.md` 整份貼給 LLM（輸入已自動填好），把回覆的 `interpretation` 區塊貼回宣告檔，再跑一次第 2 步。
-4. **獨立審查（要給大腦採用的候選才需要）**：`tw_data/alpha_review_prompt_zh.md`，用跟作者不同的模型，把 A–F 的摘要填進宣告檔的 `review`：
+4. **獨立審查（要給大腦採用的候選才需要）**：`tw_data/alpha_review_prompt_zh.md`，用跟作者不同的模型，把 A–F 的摘要填進宣告檔的 `review`。因子庫的卡片可以直接跑 `factor_review_llm_tw`（在 WSL 自己跑，API 金鑰只在那個程式裡讀；每份約幾美分，DeepSeek 餘額低於 0.5 美元會自動停）；加 `--prompt_only` 只產生提示，可以貼給任何模型：
 
    ```yaml
    review:

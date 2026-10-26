@@ -29,8 +29,9 @@ New findings: both research t values sit within 0.3 of the luck maximum for the 
 markets (research t 5.66 vs 0.30 up; holdout the same) and only in the smaller half, and its
 research excess turned negative in 2025 and early 2026. Both verdicts: style tilt, cap 20%. A
 reviewer's holdout observations go in `holdout_notes`, shown in the HTML and kept out of
-report.json unless `--holdout full`. Using DeepSeek as a second, non-Claude reviewer needs the API
-key, which this session may not read.
+report.json unless `--holdout full`. Second, non-Claude review: `tw_data/factor_review_llm_tw.py`,
+which Jans runs in WSL (the API key stays inside that process; a Claude session was blocked from
+reading `.env`); its prompts for both cards are built, the DeepSeek answers are pending.
 
 **Not done:** copying the spec, prompts and reports into the contest repo (`docs/rdagent/`) for
 teammates; the decision model's own prompt.

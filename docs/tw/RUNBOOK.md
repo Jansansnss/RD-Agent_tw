@@ -113,6 +113,16 @@ python -m rdagent.scenarios.qlib.tw_data.factor_report_tw --card <card> | --idea
 Output: `data/alpha_tw/reports/<id>/` (`report.json`, `report.html`, `prompt_stage2.md`, and a
 pre-filled `declaration.yaml` when no declaration was given). `--holdout` defaults to `none`.
 
+Second, non-Claude A–F review of a library card (Jans runs it: it reads the API key from `.env`,
+which Claude sessions may not; a few cents each; stops under the $0.50 DeepSeek reserve, D27):
+
+```bash
+python -m rdagent.scenarios.qlib.tw_data.factor_review_llm_tw --card <card> [--card <card>] [--model deepseek/deepseek-v4-pro]
+```
+
+Writes `data/alpha_tw/reviews/<card>_review_<model>.md` (and the exact prompt next to it);
+`--prompt_only` writes the prompt without calling a model.
+
 ## 4. Monitoring
 
 - Live log: `tail -f logs/factor_tw_latest.log`. Cost lines: `Accumulated Cost: $…`.
