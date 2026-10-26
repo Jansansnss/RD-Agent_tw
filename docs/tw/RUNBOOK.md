@@ -100,6 +100,19 @@ python -u -m rdagent.app.qlib_rd_loop.model_tw                    # model R&D (s
 python -u -m rdagent.app.qlib_rd_loop.factor_tw_from_report --report_folder <pdf_dir>   # factors from research PDFs
 ```
 
+## 3b. Factor reports (AI CUP alpha factory)
+
+Spec and workflow: `docs/tw/FACTOR_REPORT.md` (D32). No LLM call, no cost; about a minute and
+0.6 GB per report. The first run builds `data/alpha_tw/benchmarks.csv` from the clean CSVs.
+
+```bash
+python -m rdagent.scenarios.qlib.tw_data.factor_report_tw --baseline rev_accel --declaration docs/tw/factor_reports/rev_accel.yaml --holdout status
+python -m rdagent.scenarios.qlib.tw_data.factor_report_tw --card <card> | --idea <B-tag> | --factor_py <file> | --alpha_file <values.csv>
+```
+
+Output: `data/alpha_tw/reports/<id>/` (`report.json`, `report.html`, `prompt_stage2.md`, and a
+pre-filled `declaration.yaml` when no declaration was given). `--holdout` defaults to `none`.
+
 ## 4. Monitoring
 
 - Live log: `tail -f logs/factor_tw_latest.log`. Cost lines: `Accumulated Cost: $…`.

@@ -3,6 +3,25 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-26 (evening): formal factor report template
+
+**Factor reports (T11 `[x]`, D32).** Jans: 正式的因子報告，打包後給大腦模型判斷；一份給人看、一份給
+LLM，並提供 prompt 給隊友當模板. Spec for the team: `docs/tw/FACTOR_REPORT.md` (zh-TW: nine sections,
+how to argue economic logic, benchmark rules, both formats, reading rules for the decision model).
+Generator `tw_data/factor_report_tw.py`: a baseline, library card, teammate idea, factor.py or a CSV
+of values plus the author's declaration → `data/alpha_tw/reports/<id>/report.json` (decision model:
+facts apart from claims, no tickers, holdout numbers only with `--holdout full`) and `report.html`
+(people), about a minute each. Teammate prompts: `tw_data/factor_declare_prompt_zh.md` (stage 1,
+before results) and `factor_report_prompt_zh.md` (stage 2; the generator fills its inputs). It
+reproduces the judge on every input path. Example `docs/tw/factor_reports/rev_accel.yaml` (Claude
+wrote both stages; predictions marked after_results): direction, peak horizon (mean IC rises from
+1 to 20 days) and industry-neutral survival hold; "stronger in small caps" fails (the large half is
+stronger), and the IC sits almost entirely in up markets (down-market t 0.45). 21 active ETFs hold
+Taiwan stocks; over the research window the rev_accel book beat 5 of the 12 listed by then.
+
+**Not done:** reports for the two holdout-confirmed cards; copying the spec and prompts into the
+contest repo (`docs/rdagent/`) for teammates; the decision model's own prompt.
+
 ## Snapshot — 2026-10-25: flash campaign; 2 alphas confirmed on the holdout
 
 **Flash campaign (T9, Jans: every step on `deepseek-flash`, run until the balance is gone):**

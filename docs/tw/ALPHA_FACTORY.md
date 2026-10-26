@@ -341,6 +341,10 @@ model: {served_model: ..., run: log/<session>}
 The contest code computes the formula from its own live data. Only fields with a live source
 (TWSE/TPEx daily files, MOPS revenue) may appear in an exported alpha.
 
+A card that goes to the team or the decision model also gets a formal factor report
+(`docs/tw/FACTOR_REPORT.md`, D32). Its declaration (`docs/tw/factor_reports/<id>.yaml`) already
+holds the card's fields (pod, formula, inputs, horizon_days, dplan_template, source_authority).
+
 ## 10. Timeline
 
 | Date (2026) | Event | Factory |

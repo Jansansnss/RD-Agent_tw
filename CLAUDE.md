@@ -23,6 +23,7 @@ Deeper docs (keep them current):
 | `docs/tw/AGENT_PLAYBOOK.md` | Team design for model sessions: roles, model routing, context budgets, comms protocol. |
 | `docs/tw/TODO_GRAPH.md` | Executable branching roadmap (gates, retry ladders, jump rules). **Pick work from here; move markers.** |
 | `docs/tw/ALPHA_FACTORY.md` | AI CUP 2026 alpha factory: contest-aligned panel, fast judge + gate, LLM look-ahead protocol, tournament notes. |
+| `docs/tw/FACTOR_REPORT.md` | Formal factor report (zh-TW, team-facing): the nine sections, how to argue economic logic, the HTML (people) and JSON (decision model) versions, teammate prompts. |
 | `docs/tw/ALPHA_REVIEWS.md` | Written review of every holdout-confirmed alpha (formula from code, audit, exposures, verdict). Required before use (D24). Written in Traditional Chinese. |
 | `docs/tw/reports/` | Reports for Jans and the team (campaign results, assessments), one dated file each, in Traditional Chinese Markdown. |
 | `data/DATA_AUDIT_REPORT.md` | Data-quality audit of the FinMind collection; cleaning rules rationale. |
@@ -79,6 +80,9 @@ dump_factor_h5.py   → git_ignore_folder/factor_implementation_source_data/dail
 - Alpha factory (AI CUP 2026, `docs/tw/ALPHA_FACTORY.md`): `dump_alpha_panel_tw.py` reads the clean
   CSVs → `data/alpha_tw/alpha_panel.h5` (point-in-time 150-stock universe); `alpha_eval_tw.py`
   judges alphas on it (pandas only, no qlib); `_smoke_alpha_eval_tw.py` checks both.
+  `factor_report_tw.py` turns any factor (baseline, library card, teammate idea, factor.py, CSV of
+  values) plus the author's declaration (`docs/tw/factor_reports/<id>.yaml`, in git) into the
+  formal report `data/alpha_tw/reports/<id>/report.{json,html}` (`docs/tw/FACTOR_REPORT.md`).
 
 ### R&D loops
 

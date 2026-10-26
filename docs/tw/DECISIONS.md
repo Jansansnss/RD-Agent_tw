@@ -288,6 +288,25 @@ ranked within groups now has research t 2.92 (raw 2.74), holdout 1.68 (raw 2.28)
 hindsight than D30; the six V2 families are the 2025-26 AI-hardware themes, and their members were
 14% of the universe in 2021 and 29% in 2026. Revisit when the frozen (non-preview) V2 is published.
 
+**D32 — Factor reports: code writes every number, the author writes the words, two outputs** *(2026-10-26)*
+Jans asked what a formal factor report should contain, packaged for the team's decision model
+(大腦), one version for people and one for an LLM, with a prompt teammates can follow
+(`docs/tw/FACTOR_REPORT.md`). One generator, `tw_data/factor_report_tw.py`, runs on the judge's own
+numbers (`alpha_eval_tw`: same universe, VWAP fills, costs and gate as the loop), so reports from
+different authors compare. The author writes a YAML declaration in two stages: stage 1 (definition,
+mechanism, five fixed falsifiable predictions) before any result, committed to
+`docs/tw/factor_reports/` so the commit date proves it; stage 2 (interpretation) after, from a prompt
+whose inputs the generator fills. Code grades the predictions by fixed rules (peak horizon on mean
+IC, not t, which falls with h anyway) and lists flags: style corr > 0.7, beta outside 0.8–1.2, cost,
+√(2 ln N) for N trials, predictions not pre-registered. `report.json` keeps facts, claims and review
+apart, carries no tickers or names, and has holdout numbers only with `--holdout full` (default
+none; status = pass/fail only), extending ALPHA_FACTORY §7 to the decision model. Benchmarks: B0,
+0050 (adjusted), TAIEX/TPEx (price indexes) and active ETFs that hold Taiwan stocks, picked by daily
+correlation ≥ 0.85 with TPEx (Taiwan funds 0.86–0.94, US/global ≤ 0.81; against TAIEX the groups
+overlap because the AI rally moved both). Nothing under a year is annualized. Cost: the five
+predictions fit common mechanisms only (others are listed unchecked). Revisit when the decision
+model's input format is fixed, or when a review finds a disguise the flags miss.
+
 ---
 
 *Template for new entries:*

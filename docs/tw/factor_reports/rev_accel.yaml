@@ -1,0 +1,71 @@
+# 因子宣告範例：營收加速（rev_accel）。格式見 docs/tw/FACTOR_REPORT.md。
+# 第一階段（factor、thesis、predictions）照 tw_data/factor_declare_prompt_zh.md 寫；
+# 第二階段（interpretation）照 tw_data/factor_report_prompt_zh.md，用 prompt_stage2.md 的輸入寫。
+# 兩段都由 Claude 代寫，當作範例。營收加速是 v2 作戰規劃（2026-09-30）事前登錄的假設，
+# 但下面的細部預測是 2026-10-26 看過研究期結果後才補寫的，所以 registered 誠實標 after_results。
+factor:
+  id: rev_accel
+  name: 營收加速
+  author: Jans（範例，Claude 代寫）
+  pod: 營收獲利動能
+  one_liner: 近 3 個月營收成長快過近 12 個月的公司，之後幾週股價較強
+  formula: $rev_3m_yoy − $rev_12m_yoy（近 3 個月營收年增率減近 12 個月營收年增率），每天在當月 150 檔內排名，高分買進
+  inputs: [$rev_3m_yoy, $rev_12m_yoy]
+  data_timing: 月營收一律從次月 10 日（法定公布期限）起才算已知，早公布的公司也一樣，所以不會偷看未來
+  direction: 高分＝買進
+  horizon_days: 5
+  trials: 2  # 營收動能想法的兩個版本：單月營收年增（rev_yoy）與營收加速
+  declared_on: 2026-10-26
+  dplan_template: "{ticker} 近 3 月營收年增 {rev_3m_yoy:+.0%}，高於近 12 月的 {rev_12m_yoy:+.0%}"
+  source_authority: mops
+thesis:
+  mechanism_type: behavioral
+  concept: 營收成長正在加速的公司（基本面動能轉強）
+  story: 月營收是台股最即時的基本面資料。投資人與分析師調整獲利預估有時間差，對成長「轉折」反應不足（定錨在過去一年的成長率），股價在之後幾週逐步反映，類似財報公布後的盈餘漂移。
+  counterparty: 依季報、年度成長率或本益比定價、調整模型較慢的投資人，以及看到營收公布後賣出鎖利的短線投資人。
+  why_persists: 每月約 1,800 家公司在同一週公布營收，注意力有限；單月營收有季節性與一次性雜訊，多數人會等季報確認才調整；大型法人調整部位需要時間。
+  taiwan_specifics: 上市櫃公司每月 10 日前公布前月營收，全球少見；150 檔多為電子供應鏈，營收隨客戶拉貨起伏大，加速與減速的訊號頻繁。
+  references:
+    - Jegadeesh & Livnat (2006), Revenue surprises and stock returns, Journal of Accounting and Economics
+    - Bernard & Thomas (1989), Post-earnings-announcement drift, Journal of Accounting Research
+    - Hong, Lim & Stein (2000), Bad news travels slowly, Journal of Finance
+predictions:
+  registered: after_results
+  sign: positive
+  peak_horizon_days: 20     # 反應不足要幾週才修正完
+  stronger_in: small        # 較少人注意的小型股反應更慢
+  industry_neutral: survives  # 營收轉折是公司自己的資訊，不只是產業輪動
+  regime: both
+  other:
+    - 剛公布的營收（$rev_age 小）效果比放了很久的強
+    - 訊號在公布後 1–4 週內逐漸減弱，不會反轉
+notes: 範例檔。預測在看過研究期結果後才寫，所以報告的邏輯檢查只能當描述，不能當證明。
+# 第二階段：以下照 prompt_stage2.md 寫（只引用輸入裡的數字；保留期只知道沒通過）。
+interpretation:
+  summary: 研究期支持「營收加速的股票之後 1–20 日較強」：5 日 IC t 3.45（facts.research.ic.5.t），五分位完全單調（quintiles.monotonicity 1.0），扣掉產業平均後仍在（robustness.industry_neutral.t 3.96）；但保留期沒有通過確認（verdict_by_code.holdout.status），而且效果幾乎都出現在大盤上漲時（robustness.market_down.t 0.45）。細部預測是看過研究期結果才寫的（predictions.registered = after_results），只能當描述，不能證明機制。
+  concept_vs_measure: 想衡量「營收成長加速」，公式量的是近 3 月年增率減近 12 月年增率。它跟單月營收年增相關 0.53（style_corr.revenue_growth），跟規模、價值、動能、低波動都在 ±0.19 以內，持股平均市值百分位 0.49（holdings.size_percentile），最大族群半導體只占 13.2%，所以大致量到想量的東西，不是別的風格的偽裝。但它跟因子庫的營收修正卡相關 0.58（library_corr_top），屬於同一個營收資訊家族。
+  prediction_notes: 方向（sign）與產業中性（industry_neutral）兩條支持「這是公司自己的營收資訊」；平均 IC 從 1 日 0.0153 升到 20 日 0.0378（ic.*.mean），符合訊息在幾週內逐步反映。「小型股更強」沒有支持（小型半 0.0184、大型半 0.0286，差的 t −1.06），跟注意力不足的說法方向相反；「多空頭都有效」只有方向對（上漲時 t 4.37、下跌時 t 0.45）。兩條無法自動檢查的預測（公布後天數、會不會反轉）還沒驗。
+  alternatives:
+    - beta：組合對 B0 的 beta 1.22（book.beta_vs_b0，flag beta_tilt），下跌時 IC 接近 0，部分超額可能只是多抱了高 beta 的股票。
+    - 期間集中：2025 年超額 43.7%、IC 0.0513（by_year），其餘各年超額 3.4%–20.3%、IC 0.0075–0.0249；不是單一年度，但 2025 年的行情放大了它。
+    - 成本：每次換手 7.2%，成本加倍後年化超額仍有 12.09%（book.ann_excess_at_2x_cost_pct），成本不是問題。
+    - 資料探勘：試過 2 個版本，純運氣的最大 |t| 約 1.18（verdict_by_code.luck_max_abs_t），t 3.45 遠高於此。
+    - 大盤比較：研究期累積 +358.0%，0050 同期 +239.1%，但對 0050 的 IR 只有 0.39、月勝率 48%（benchmarks）；對主動式 ETF 只贏 12 檔中的 5 檔，中位數少 12.7%（active_etfs）。大幅領先主要來自同期的電子股行情，不全是選股。
+    - 預測是事後寫的（flag predictions_not_preregistered），上面的邏輯檢查只能當描述。
+  risks:
+    - 大盤下跌或盤整時幾乎無效（robustness.market_down.ic 0.0048，t 0.45）；比賽 24 日若遇到回檔，這個訊號幫不上忙。
+    - 保留期沒有通過確認（verdict_by_code.holdout.failed_checks：ic_t、window_median；flag holdout_not_confirmed）。
+    - 最大回撤 −35.2%，比 B0 的 −30.4% 深（benchmarks）。
+    - 跟營收家族的其他卡片相關 0.53–0.58，同時給高權重會集中押同一種資訊。
+    - 跟 mom20 相關只有 0.07（style_corr.mom20_crowding），跟多數隊伍的動能選股重疊不高，這點是優點。
+  role: selection_alpha
+  weight_cap_pct: 30
+  pairs_with: 下跌時仍可能有效的訊號，例如 60 日低波動或營收殖利率卡（這兩個是建議，下跌時的表現要另外驗證）；不要跟其他營收修正卡同時給高權重。
+  kill_switch: 比賽期間每 5 個交易日檢查一次：組合扣成本後的累積超額（對 B0）低於研究期 24 日最差 10% 的 −3.08%（windows_24d.p10_pct），權重減半；比賽期間最近 10 個交易日的平均 5 日 IC 小於 0 時停用。
+  open_questions:
+    - 公布後天數：把 $rev_age ≤ 10 天與 > 20 天分開算 IC。前者明顯較強，支持「營收公布後反應不足」；兩者相同，代表是持續的成長特性，不是公布事件。
+    - 下跌時失效是 beta 還是機制：先把分數對 beta 中性化，再看下跌時的 IC。中性化後回到正值，代表原本只是 beta；仍接近 0，代表營收加速股在風險趨避時被一起賣出。
+    - 大型股較強：改用法人持股或成交金額切分。法人持股高的反而較強，就要把「注意力不足」改成「法人依月營收調整部位」。
+  post_hoc:
+    - 效果集中在大盤上漲時，可能因為營收加速的股票多是高 beta 的電子股（看過研究期結果才提出）。
+    - 大型股較強，可能代表推動價格的是依月營收調整部位的法人，而不是反應慢的散戶（看過研究期結果才提出）。

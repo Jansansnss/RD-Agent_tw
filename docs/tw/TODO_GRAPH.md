@@ -204,6 +204,17 @@ pass → keep the library for Demo Day; v1.1 ships without new alphas.
 Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new
 `code_version`; only fields with a live source.
 
+### `[x]` T11 · Formal factor report — Implementer (Claude)
+Every factor handed to the team or the decision model (大腦) ships as `tw-factor-report/1`
+(`docs/tw/FACTOR_REPORT.md`, D32): generator `tw_data/factor_report_tw.py`, teammate prompts for
+stage 1 (declaration, before results) and stage 2 (interpretation), declarations in
+`docs/tw/factor_reports/`. Feeds G4/T10: a card exported in T10 should come with its report.
+- 2026-10-26: built. Reproduces the judge on all five input paths (rev_accel t 3.45 / +1.22%,
+  SalesYield card 3.15 / +0.40%, lowvol60 CSV 0.76, idea B5 1.71 at 20 days = team_ideas.json).
+  Example `docs/tw/factor_reports/rev_accel.yaml`. Next: reports for the two confirmed cards; the
+  spec and prompts into the contest repo for teammates; the decision model's prompt reads
+  `report.json` by the FACTOR_REPORT §4 rules.
+
 ### `[ ]` S5 · Raw `TaiwanStockPrice` → exact VWAP — `risky` (collector)
 Collect raw daily prices (by date, ~4.4K calls) so VWAP is exact everywhere and FinMind's adjusted
 prices can be rebuilt with our own `$factor` (DECISIONS D13 deferred, D17). Supersedes S1.
@@ -220,6 +231,7 @@ flowchart TD
     T9 --> G4{G4 export gate 10/30}
     G4 -->|pass| T10[T10 alpha cards → v1.1]
     G4 -->|none| DD[Demo Day material]
+    T11[T11 factor reports] -.-> G4
     S5[S5 raw prices] -.-> T7
 ```
 
