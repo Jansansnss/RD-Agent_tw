@@ -15,6 +15,11 @@ so it stops when the balance is under the $0.50 reserve (D27) unless --allow_res
 
     python -m rdagent.scenarios.qlib.tw_data.factor_review_llm_tw --card LiquiditySize_Rank_20d --card SalesYield_LiquiditySize_70_30
     python -m rdagent.scenarios.qlib.tw_data.factor_review_llm_tw --card LiquiditySize_Rank_20d --prompt_only
+    python -m rdagent.scenarios.qlib.tw_data.factor_review_llm_tw --confirmed
+
+--confirmed takes every holdout-confirmed card (holdout_report.json) that has no review by this model
+yet. tw_data/review_llm_tw.sh runs exactly that, so a Claude session can start it through one
+allow-listed command (.claude/settings.local.json) without ever reading .env.
 """
 
 import argparse
@@ -73,14 +78,31 @@ def deepseek_balance() -> tuple[float, str] | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--card", action="append", required=True, help="library card name (repeatable)")
+    parser.add_argument("--card", action="append", default=[], help="library card name (repeatable)")
+    parser.add_argument("--confirmed", action="store_true",
+                        help="every holdout-confirmed card that has no review by this model yet")
+    parser.add_argument("--force", action="store_true", help="review again although this model already did")
     parser.add_argument("--model", default="deepseek/deepseek-v4-pro",
                         help="litellm model name; it must differ from the first reviewer's and the author's")
     parser.add_argument("--prompt_only", action="store_true", help="write the prompt, call no model")
     parser.add_argument("--allow_reserve", action="store_true", help="spend below the $0.50 reserve")
     args = parser.parse_args()
     slug = re.sub(r"[^\w.-]", "_", args.model.split("/")[-1])
-    prompts = {card: build_prompt(card) for card in args.card}
+    cards = list(args.card)
+    if args.confirmed:
+        holdout = json.loads((DATA_DIR / "alpha_tw" / "holdout_report.json").read_text(encoding="utf-8"))
+        cards += [r["name"] for r in holdout if r.get("passed") and r["name"] not in cards]
+    if not cards:
+        parser.error("give --card or --confirmed")
+    if not args.force:
+        done = [c for c in cards if (REVIEWS / f"{c}_review_{slug}.md").exists()]
+        for card in done:
+            print(f"{card}: already reviewed by {args.model} ({card}_review_{slug}.md); --force to redo")
+        cards = [c for c in cards if c not in done]
+    if not cards:
+        print("Nothing to review.")
+        return
+    prompts = {card: build_prompt(card) for card in cards}
     for card, prompt in prompts.items():
         path = REVIEWS / f"{card}_review_{slug}_prompt.md"
         path.write_text(prompt, encoding="utf-8")

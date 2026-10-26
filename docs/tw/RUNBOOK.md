@@ -121,7 +121,11 @@ python -m rdagent.scenarios.qlib.tw_data.factor_review_llm_tw --card <card> [--c
 ```
 
 Writes `data/alpha_tw/reviews/<card>_review_<model>.md` (and the exact prompt next to it);
-`--prompt_only` writes the prompt without calling a model.
+`--prompt_only` writes the prompt without calling a model; `--confirmed` takes every holdout-confirmed
+card not yet reviewed by that model. `tw_data/review_llm_tw.sh` (no arguments) runs `--confirmed`;
+to let Claude sessions start it, Jans allow-lists exactly
+`powershell.exe -NoProfile -Command "wsl bash /mnt/g/Github/RD-Agent/rdagent/scenarios/qlib/tw_data/review_llm_tw.sh"`
+in `.claude/settings.local.json` (a session cannot grant itself that).
 
 ## 4. Monitoring
 
