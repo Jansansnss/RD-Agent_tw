@@ -1,6 +1,6 @@
 # Alisa 策略建議：因子測試與第三輪因子挖掘
 
-2026-10-26（迴圈仍在跑，本報告會持續更新）
+2026-10-26（迴圈已結束：22:12 餘額降到保留線，自動停止。這是最終版）
 
 ## 結論
 
@@ -8,7 +8,12 @@
 2. **她提的改良也救不回來**：上漲天數、漲幅集中度、族群輪動、反彈確認等 14 個寫法，沒有一個通過研究期門檻。族群由弱轉強只在最近半年（保留期）很好，研究期五年完全不支持，而且每次調整要換掉約九成持股。
 3. **反彈要等確認，結果相反**：跌深股「沒確認」就買，之後 5 日平均贏 150 檔平均 0.43%（未扣成本）；「確認後」才買反而是 −0.04%。等到確認時，反彈已經發生了。
 4. **LightGBM 組合器不建議用**：在研究期的滾動測試，它輸給 5 個訊號的等權平均，也輸給現用的 50/20/30（§3）。
-5. **迴圈繼續跑**：她的想法已放進迴圈（B1–B14），附上研究期的測試結果，讓 LLM 去試能補救的變化型。到第 73 輪（44 輪、81 個因子）有 7 張通過研究期，都沒通過保留期。其中兩張是把資料庫已有的訊號混在一起，已在想法清單擋掉這種做法；一張來自 Alisa 的「上漲天數」想法（改成 40 日），保留期反轉。進度見 §4。
+5. **第三輪因子挖掘已結束**：
+   - 規模：第 30–103 輪，共 74 輪、128 個因子，花 9.53 美元（04:17–22:12）。
+   - 結果：15 張通過研究期，0 張通過保留期；保留期確認的仍然是原本 2 張。
+   - 混合型：15 張裡有 9 張是「借用資料庫已有的強訊號」：2 張把已有訊號混在一起，7 張是「某個弱訊號 × 股東權益報酬率（ROE）水準」。它們研究期好看，保留期全部沒過。
+   - 最接近確認的：第 67 輪「營收成長加速度」，保留期 t 1.6、24 日超額中位數 +4.38%。比賽期間值得紙上追蹤。
+   - 進度與逐輪結果見 §4 和附錄。
 
 ## 1. Alisa 的建議怎麼用
 
@@ -172,6 +177,7 @@ Alisa 的文件（`G:\AI_cup_2026\Alisa策略建議.docx`）檢討一個以短�
 | 10/26 12:40 | 第 30–64 輪（35 輪） | 65 | 4 | 0 | 5.98（12:39） |
 | 10/26 13:50 | 第 30–68 輪（39 輪） | 72 | 5 | 0 | 5.63（13:34） |
 | 10/26 14:40 | 第 30–73 輪（44 輪） | 81 | 7 | 0 | 4.91（14:39） |
+| 10/26 22:12（結束） | 第 30–103 輪（74 輪） | 128 | 15 | 0 | 0.45 |
 
 **第 30 輪白費一輪**：兩個因子都用 252 日的窗格，但 LLM 寫程式時用的除錯資料只有一年，算出來全是空值，連評分都沒進去。已把除錯資料延長成兩年（DECISIONS D26），之後的長窗格因子都能正常評分。
 
@@ -219,6 +225,22 @@ Alisa 的文件（`G:\AI_cup_2026\Alisa策略建議.docx`）檢討一個以短�
 - 第 70 輪「近 12 個月營收年增率的修正」：和第 67 輪同一類；研究期通過；保留期 t 1.0，+0.47%，沒通過。
 - 第 53–58、65–71 輪都在試盈餘或營收的修正，已在想法清單把這一類列為「已試過」。
 
+**第 74–103 輪：8 張，全部沒通過保留期**
+
+| 輪 | 因子 | 保留期 5 日 t，24 日中位數 |
+|---|---|---|
+| 74 | 營收成長修正（63 日，扣掉第 67 輪那張的部分） | t 1.5，+1.64% |
+| 86 | ROE 變化 × ROE 水準 | t −1.1，−1.52% |
+| 87 | ROE 穩定度 × ROE 水準 | t −0.6，−2.74% |
+| 89 | 庫藏股 × ROE 水準 × 盈餘殖利率 | t 0.5，+0.21% |
+| 93 | 庫藏股意外 × ROE 水準 | t −0.3，−0.72% |
+| 95 | 融資減少意外 × ROE 水準 | t −0.5，−2.23% |
+| 97 | 外資買超意外 × ROE 水準 | t −0.6，−0.89% |
+| 103 | 投信賣超意外 × ROE 水準 | t −1.2，−0.82% |
+
+- **ROE 水準是主角**：第 86 輪起，LLM 發現「任何訊號 × ROE 水準」都容易過研究期門檻。同樣的訊號不乘 ROE 時，研究期都沒過，例如外資買超意外 t 1.43。因為另一半每次不同，跟資料庫的相關都低於 0.6，所以一張接一張通過。這跟第 34、37 輪的混合型是同一個漏洞。
+- **保留期一致地輸**：7 張 ROE 型有 6 張的 24 日中位數是負的。ROE 這類「品質」因子最近半年跟動能一樣不靈。
+
 ### 4.2 被相關上限擋下的營收驚喜
 
 第 44、47 輪有 4 個因子，研究期的 t 值都過了（5 日 t 4.08、20 日 t 3.1），卻因為和現在交易的「單月營收年增」相關 0.64 被擋下。它們是同一個想法：單月營收年增和自己過去 24 個月比的 z 分數（產業中性）。第 47 輪的三個「依新鮮度加權」版本，分數和第 44 輪完全一樣，等於同一個因子測了四次。
@@ -239,8 +261,160 @@ Alisa 的文件（`G:\AI_cup_2026\Alisa策略建議.docx`）檢討一個以短�
 
 到第 64 輪，有三輪直接用了 B 編號：第 35 輪 B3（暴漲後守住多少漲幅：5 日 t 0.85，沒過）、第 39 輪 B10（引用投信買超的研究期結果，決定不再測投信）、第 61 輪 B1（40 日上漲天數比例，通過研究期，見 §4.1）。第 62–63 輪接著試了上漲與下跌幅度的不對稱，都沒過。其他輪多半在修上一輪差一點的因子，這是想法清單的規則允許的。產業中性動能、產業中性資金流向都和 B5（個股相對族群）同一類。
 
+### 4.5 這次學到的
+
+- **想法清單管不太住 LLM**：
+  - 每輪的下一個假設主要跟著上一輪回饋的建議走，而回饋那一步看不到想法清單。
+  - 所以「同一類最多修三輪」「不要再做營收」這類規則，常常要隔好幾輪才生效，或被繞過（改名、取殘差、乘上 ROE）。
+- **門檻擋不住混合型**：
+  - 現在只檢查新因子跟每一張已收卡片的相關要 ≤ 0.6。
+  - 「已有的強訊號 × 新的弱訊號」能過這一關，卻沒有新資訊。
+  - 建議加一條：新因子扣掉資料庫已有因子之後，仍要有顯著的預測力。這要 Jans 決定。
+- **花費**：
+  - DeepSeek 實扣 9.53 美元，LiteLLM 自己算的是 4.79 美元，又少算一半。
+  - 1,155 次呼叫，平均每輪約 14.5 分鐘、0.13 美元。
+- **停止機制**：餘額到 0.50 美元時自動停，實際停在 0.45 美元，比賽每日系統的 D-Plan 文字仍可用。
+
 ## 5. 注意事項
 
 - **保留期對這些想法不乾淨**：Alisa 是看過這半年才寫的，所以從她的想法來的因子，就算通過保留期，也只能當參考；真正的驗收是比賽期間。
 - **測了很多次**：直接測試 18 個公式，加上迴圈裡的每一輪，偶然通過的機會會累積。這就是研究期門檻用 t ≥ 3 的原因。
 - **產業分類**：10/26 起用完整分類（§2.4）。它是今天的快照，而且產品曝險族群是預覽版；套用到過去有事後偏差，挑哪些主題本身就反映了 2025–26 年的行情。
+
+## 附錄：第三輪評分過的因子（第 30–103 輪）
+
+「t」是研究期 IC 的 t 值，「24 日中位數」是研究期前 24 檔、每 5 日調整、扣成本後，24 個交易日贏 150 檔等權的幅度。
+
+| 輪 | 因子 | 5 日 t | 20 日 t | 24 日中位數 | 結果 |
+|---|---|---|---|---|---|
+| 30 | （沒有因子進入評分） | – | – | – | 寫程式失敗 |
+| 31 | `IndustryNeutralMomentum_125d_Skip20_Rank` | +2.39 | +1.99 | +0.83% | t 不足 |
+| 31 | `ForeignOwnershipTrend_250d_Rank` | +0.52 | -0.07 | +0.54% | t 不足、正的年度太少 |
+| 31 | `TurnoverShock_20d_250d_Rank` | -0.05 | -0.39 | -0.68% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 32 | `IndustryNeutralMomentum_125d_Skip20_VolScaled60d_Rank` | +2.09 | +1.69 | +0.57% | t 不足 |
+| 32 | `NetShareIssuance_252d_Rank` | +1.10 | +0.62 | -0.10% | t 不足、24 日中位數 ≤ 0 |
+| 33 | `IndustryNeutralMomentum_125d_Skip20_SizeNeutral_Rank` | +2.93 | +2.15 | +0.83% | t 不足 |
+| 33 | `IndustryNeutralMomentum_125d_Skip20_SizeNeutral_VolScaled60d_Rank` | +2.40 | +1.72 | +0.34% | t 不足 |
+| 34 | `IndustrySizeNeutralMom125Skip20_ForeignOwnershipResid_85_15_Rank` | +3.30 | +2.38 | +0.73% | 同輪重複 |
+| 34 | `IndustrySizeNeutralMom125Skip20_ForeignOwnershipResid_70_30_Rank` | +3.72 | +2.71 | +0.31% | 同輪重複 |
+| 34 | `IndustrySizeNeutralMom125Skip20_ForeignOwnershipResid_50_50_Rank` | +4.49 | +3.11 | +0.44% | 通過 |
+| 35 | `PostJumpRetention_10d_Rank` | +0.85 | +2.10 | -1.87% | t 不足、24 日中位數 ≤ 0 |
+| 36 | `RevAccel_DivYield_ForeignOwnership_40_30_30_Rank` | +7.13 | +6.52 | +1.18% | 和已有因子太像 |
+| 37 | `SlowComposite5_RevAccel_DivYield_ForeignOwn_HighLowPos_Mom125SizeNeutral_Rank` | +6.60 | +6.53 | +1.20% | 通過 |
+| 38 | `IndustryNeutralMoneyFlow_60d_Skip5_Rank` | +3.44 | +2.49 | +0.44% | 通過 |
+| 38 | `IndustryNeutralIntradayDemand_60d_Skip5_Rank` | +1.76 | +1.97 | +0.08% | t 不足 |
+| 39 | `IndustryNeutralMoneyFlowTrend_20d_60d_Skip5_Rank` | +2.28 | +2.51 | +0.11% | t 不足 |
+| 39 | `IndustryNeutralSignedVolumePressure_60d_Skip5_Rank` | +2.05 | +1.57 | -0.22% | t 不足、24 日中位數 ≤ 0 |
+| 39 | `IndustryNeutralIntradayDemand_60d_Rank` | +2.48 | +2.25 | +0.03% | t 不足 |
+| 40 | `AmountWeightedIntradayDemand_60d_Rank` | +1.53 | +1.68 | -0.41% | t 不足、24 日中位數 ≤ 0 |
+| 40 | `AmountWeightedIntradayDemand_120d_Rank` | +1.51 | +1.60 | -0.68% | t 不足、24 日中位數 ≤ 0 |
+| 41 | `VWAP_SupportBreadth_60d_Rank` | +4.03 | +3.03 | -0.17% | 和已有因子太像、24 日中位數 ≤ 0 |
+| 42 | `VWAPSupportBreadth_Residual_PriceBlock_60d_Rank` | +3.78 | +2.58 | -0.64% | t 不足、24 日中位數 ≤ 0 |
+| 43 | `IndustryNeutral_CloseVWAP_Support_60d_Rank` | +2.32 | +1.55 | +0.42% | 和已有因子太像、t 不足 |
+| 43 | `IndustryNeutral_CloseVWAP_Support_120d_Rank` | +2.42 | +1.44 | +0.31% | t 不足 |
+| 44 | `IndustryNeutral_RevYoy_ZScore24m_Rank` | +4.08 | +3.12 | +0.33% | 和已有因子太像 |
+| 44 | `RevAccel_PriceUnderreaction_125dSkip20_Rank` | -0.29 | +0.12 | -0.20% | t 不足、24 日中位數 ≤ 0 |
+| 45 | `RevenueSurprise_Residual_24m_Rank` | +1.57 | +1.43 | +0.07% | t 不足 |
+| 46 | （沒有因子進入評分） | – | – | – | 寫程式失敗 |
+| 47 | `RevenueSurprise_FreshWeight15_DistinctObs_Rank` | +4.08 | +3.13 | +0.33% | 和已有因子太像 |
+| 47 | `RevenueSurprise_FreshWeight10_DistinctObs_Rank` | +4.08 | +3.13 | +0.33% | 和已有因子太像 |
+| 47 | `RevenueSurprise_FreshWeight20_DistinctObs_Rank` | +4.08 | +3.13 | +0.33% | 和已有因子太像 |
+| 48 | `DownDayCloseLocation_60d_Skip5_Rank` | +2.68 | +2.14 | +0.10% | t 不足 |
+| 48 | `AmountCLVCovariance_60d_Skip5_Rank` | -0.08 | +0.53 | -0.14% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 49 | `AbnormalDownDayCLV_60d_Skip5_Rank` | -0.35 | +0.52 | -0.34% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 49 | `AbnormalDownDayCLV_120d_Skip5_Rank` | -2.31 | -1.44 | -0.72% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 49 | `DownDayCLV_AbnormalZ_60d_Skip5_Rank` | -0.73 | +0.17 | -0.21% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 50 | `IndustryNeutral_WeakDayCLV_60d_Skip5_Rank` | +1.70 | +1.31 | -0.35% | t 不足、24 日中位數 ≤ 0 |
+| 50 | `IndustryNeutral_WeakDayCLV_Breadth_60d_Skip5_Rank` | +1.53 | +1.06 | -0.27% | t 不足、24 日中位數 ≤ 0 |
+| 51 | `IndustryNeutralResidualMomentum_100d_Skip20_Rank` | +2.79 | +1.97 | +0.73% | t 不足 |
+| 52 | `IndustryNeutralResidualMomentum_100d_Skip20_SizeLiquidityNeutral_Rank` | +2.58 | +1.54 | +0.35% | t 不足 |
+| 52 | `IndustryNeutralResidualMomentum_100d_Skip20_SizeLiquidityBetaNeutral_Rank` | +2.51 | +1.42 | +0.26% | t 不足 |
+| 53 | `IndustryNeutral_EarningsRevisionYield_126d_Rank` | +2.70 | +2.27 | +0.46% | t 不足 |
+| 53 | `IndustryNeutral_EarningsRevisionYield_252d_Rank` | +2.42 | +1.97 | +0.50% | t 不足 |
+| 54 | `IndustryNeutral_ImpliedEarningsGrowth_126d_Rank` | +2.43 | +2.26 | +0.74% | t 不足 |
+| 54 | `IndustryNeutral_ImpliedEarningsGrowth_63d_Rank` | +2.47 | +1.80 | +0.24% | t 不足 |
+| 55 | `IndustryNeutral_EarningsRevisionYield_63d_Rank` | +2.77 | +2.22 | +0.32% | t 不足 |
+| 55 | `IndustryNeutral_EarningsRevisionAccel_63d_Rank` | +2.33 | +1.57 | +0.14% | t 不足 |
+| 55 | `IndustryNeutral_EarningsRevisionYieldZ_63d_Rank` | +1.96 | +2.18 | +0.25% | t 不足 |
+| 55 | `IndustryNeutral_MarginExpansion_252d_Rank` | -0.03 | -0.07 | -0.10% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 56 | `IndustryNeutral_DividendPayoutRatio_SizeNeutral_Rank` | -0.64 | +0.01 | +0.23% | t 不足 |
+| 57 | `IndustryNeutral_ShortInterestIncrease_20d_Skip5_SizeNeutral_Rank` | +0.20 | -0.53 | -0.35% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 57 | `IndustryNeutral_ShortInterestIncrease_10d_Skip5_SizeNeutral_Rank` | -0.14 | -0.69 | -0.32% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 57 | `IndustryNeutral_ShortInterestIncrease_40d_Skip5_SizeNeutral_Rank` | +0.26 | -0.00 | -0.07% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 58 | `IndustryNeutral_EarningsRevisionYield_63d_SizeLiquidityNeutral_Rank` | +2.76 | +2.35 | +0.13% | t 不足 |
+| 58 | `IndustryNeutral_EarningsRevisionYield_126d_SizeLiquidityNeutral_Rank` | +2.45 | +2.18 | +0.03% | t 不足 |
+| 59 | `IndustryNeutral_EarningsHighProximity_252d_Rank` | +1.77 | +0.90 | +0.10% | t 不足 |
+| 59 | `IndustryNeutral_EarningsRangePosition_252d_Rank` | +2.15 | +1.70 | +0.47% | t 不足 |
+| 60 | `IndustryNeutral_ForeignAccumulationConsistency_60d_Skip5_Rank` | +0.88 | +0.24 | +0.00% | t 不足 |
+| 60 | `IndustryNeutral_ForeignAccumulationConsistency_120d_Skip5_Rank` | +1.90 | +1.00 | +0.18% | t 不足 |
+| 61 | `UpDayConsistency_40d_Skip5_Rank` | +3.02 | +2.35 | +0.51% | 通過 |
+| 61 | `UpDayConsistency_20d_Skip5_Rank` | +2.08 | +1.84 | +0.38% | t 不足 |
+| 62 | `UpDownPayoffAsymmetry_40d_Skip5_Rank` | +2.45 | +2.24 | +0.34% | 和已有因子太像、t 不足 |
+| 62 | `UpDownMeanMagnitudeRatio_40d_Skip5_Rank` | +0.21 | +0.48 | +0.17% | t 不足、正的年度太少 |
+| 63 | `UpDownPayoffAsymmetry_40d_Skip5_SizeIndMomResid_Rank` | +2.30 | +2.12 | -0.10% | t 不足、24 日中位數 ≤ 0 |
+| 64 | `IndustryNeutral_ReturnSkewShape_120d_Skip5_Rank` | -2.18 | -1.40 | -0.35% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 64 | `IndustryNeutral_ReturnSkewShape_60d_Skip5_Rank` | -0.79 | -0.75 | -0.34% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 65 | `IndustryNeutral_RevenueGrowthRevision_1m_Rank` | +1.19 | -0.18 | -0.22% | t 不足、24 日中位數 ≤ 0 |
+| 65 | `IndustryNeutral_Revenue3mGrowthRevision_1m_Rank` | +2.80 | +1.31 | +0.50% | t 不足 |
+| 66 | `PublicationAligned_Revenue3mGrowthRevision_IndustryNeutral_Rank` | +2.61 | +1.28 | +0.64% | t 不足 |
+| 67 | `PublicationAligned_Revenue3mGrowthRevision_VolScaled_IndustryNeutral_Rank` | +4.70 | +3.68 | +0.74% | 同輪重複 |
+| 67 | `IndustryNeutral_Revenue3mGrowthRevision_21dLag_VolScaled_Rank` | +4.90 | +3.92 | +0.50% | 通過 |
+| 68 | `IntradayReturnDominance_60d_Skip5_IndustryNeutral_Rank` | +1.40 | +0.91 | -0.11% | t 不足、24 日中位數 ≤ 0 |
+| 68 | `IntradayReturnDominance_120d_Skip5_IndustryNeutral_Rank` | – | – | – | 程式含代號 |
+| 69 | `IndustryNeutral_EarningsRevision_63d_OwnVolScaled_Rank` | +2.91 | +2.61 | +0.03% | t 不足 |
+| 69 | `IndustryNeutral_EarningsRevision_126d_OwnVolScaled_Rank` | +3.57 | +3.01 | +0.49% | 通過 |
+| 70 | `IndustryNeutral_Revenue12mGrowthRevision_21dLag_OwnVolScaled_Rank` | +3.48 | +2.22 | +0.15% | 通過 |
+| 70 | `IndustryNeutral_Revenue3mGrowthRevision_63dLag_OwnVolScaled_Rank` | +4.19 | +3.97 | +0.89% | 和已有因子太像 |
+| 71 | `IndustryNeutral_Revenue3mGrowthRevision_63dLag_ResidualToFastRevisionRanks_Rank` | +1.76 | +2.46 | -0.21% | t 不足、24 日中位數 ≤ 0 |
+| 71 | `IndustryNeutral_Revenue12mGrowthRevision_63dLag_ResidualToFastRevisionRanks_Rank` | +2.14 | +2.57 | +0.06% | t 不足 |
+| 72 | `IndustryNeutral_DividendGrowth_252d_Rank` | +2.27 | +1.16 | +0.11% | t 不足 |
+| 72 | `IndustryNeutral_DividendGrowth_126d_Rank` | +1.68 | +0.46 | -0.62% | t 不足、24 日中位數 ≤ 0 |
+| 73 | `IndustryNeutral_EarningsSupportedDividendGrowth_252d_Rank` | +2.29 | +1.65 | +0.08% | t 不足 |
+| 74 | `IndustryNeutral_Revenue3mGrowthRevision_63dLag_PartialResidualToFastRanks_Rank` | +3.97 | +3.86 | +0.72% | 通過 |
+| 74 | `IndustryNeutral_Revenue3mGrowthRevision_63dLag_HardPartialResidualToFastRanks_Rank` | +3.62 | +3.61 | +0.43% | 同輪重複 |
+| 74 | `IndustryNeutral_Revenue12mGrowthRevision_63dLag_PartialResidualToFastRanks_Rank` | +3.12 | +2.70 | +0.55% | 和已有因子太像、t 不足 |
+| 75 | `IndustryNeutral_MarginDaysToCover_60d_Rank` | +1.01 | +0.49 | -0.56% | t 不足、24 日中位數 ≤ 0 |
+| 75 | `IndustryNeutral_ShortDaysToCover_60d_Rank` | +0.90 | +0.54 | +0.01% | t 不足 |
+| 76 | `IndustryNeutral_ReturnSkewAversion_252d_Skip5_Rank` | +0.97 | +0.89 | -0.37% | t 不足、24 日中位數 ≤ 0 |
+| 76 | `IndustryNeutral_ReturnSkewAversion_189d_Skip5_Rank` | +1.86 | +1.01 | -0.36% | t 不足、24 日中位數 ≤ 0 |
+| 77 | `IndustryNeutral_ReturnMAX3_21d_Skip5_VolScaled_Rank` | -1.66 | -1.99 | -1.68% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 78 | `IndustryNeutral_RevenueRevisionBreadth_252d_Rank` | +2.85 | +2.46 | +0.22% | 和已有因子太像、t 不足 |
+| 79 | `IndustryNeutral_RevenuePublicationEarlinessDeviation_252d_Rank` | +nan | +nan | -0.23% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 79 | `IndustryNeutral_RevenuePublicationEarlinessLevel_Rank` | +nan | +nan | -0.23% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 80 | `IndustryNeutral_RevenueGrowthTrendTStat_252d_Rank` | +3.24 | +2.54 | +0.42% | 和已有因子太像、t 不足 |
+| 80 | `IndustryNeutral_RevenueGrowthTrendTStatExFresh_252d_Rank` | +2.30 | +1.94 | +0.21% | 和已有因子太像、t 不足 |
+| 81 | `IndustryNeutral_RevenueTrendTStat_252d_ResidualToAcceptedRevision_Rank` | +2.34 | +1.62 | +0.42% | 和已有因子太像、t 不足、正的年度太少 |
+| 82 | `IndustryNeutral_RevenueGrowthStability_252d_Rank` | -1.91 | -1.63 | -0.61% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 82 | `IndustryNeutral_ROEChange_63d_Rank` | +3.06 | +2.97 | -0.04% | t 不足、24 日中位數 ≤ 0 |
+| 83 | `IndustryNeutral_ROEChange_63d_BetaResid_Rank` | +2.96 | +2.86 | -0.30% | t 不足、24 日中位數 ≤ 0 |
+| 84 | `IndustryNeutral_ROEChange_63d_OwnVolScaled_Rank` | +3.36 | +3.36 | -0.07% | 24 日中位數 ≤ 0 |
+| 85 | `IndustryNeutral_ROEChange_63d_OwnVolScaled_PBResidual_Rank` | +3.15 | +2.96 | -0.20% | t 不足、24 日中位數 ≤ 0 |
+| 86 | `IndustryNeutral_ROEChange63_OwnVolScaled_x_ROELevel_Rank` | +4.09 | +3.50 | +0.58% | 通過 |
+| 87 | `IndustryNeutral_ROEPersistence_315d_x_ROELevel_Rank` | +3.38 | +2.56 | +0.79% | 通過 |
+| 88 | `IndustryNeutral_DividendGrowth_252d_x_ROELevel_Rank` | +2.54 | +1.98 | +0.04% | 和已有因子太像、t 不足 |
+| 88 | `IndustryNeutral_BuybackIntensity_252d_x_ROELevel_Rank` | +2.91 | +2.28 | +0.43% | t 不足 |
+| 89 | `IndustryNeutral_BuybackIntensity_252d_x_ROELevel_x_EarningsYield_Rank` | +3.88 | +2.88 | +0.36% | 通過 |
+| 90 | `IndustryNeutral_BuybackIntensity_252d_Residual_vs_ROELevel_EarningsYield_Rank` | -1.13 | -1.00 | -0.44% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 91 | `IndustryNeutral_ForeignHoldingLowBaseAccumulation_120d_Rank` | +0.87 | +0.32 | -0.01% | t 不足、24 日中位數 ≤ 0 |
+| 91 | `IndustryNeutral_ForeignHoldingLowBaseAccumulation_60d_Rank` | +0.55 | -0.40 | +0.20% | t 不足、正的年度太少 |
+| 91 | `IndustryNeutral_ForeignHoldingLowBaseAccumulation_240d_Rank` | +0.46 | -0.29 | +0.31% | t 不足、正的年度太少 |
+| 92 | （沒有因子進入評分） | – | – | – | 寫程式失敗 |
+| 93 | `IndustryNeutral_BuybackSurprise_63d_OwnNoiseScaled_x_ROELevel_Rank` | +4.29 | +3.47 | +0.34% | 通過 |
+| 93 | `IndustryNeutral_MarginBalanceDeleveraging_63d_x_ROELevel_Rank` | +2.93 | +2.24 | +0.25% | t 不足 |
+| 94 | `IndustryNeutral_SpeculativePositionRelease_63d_x_ROELevel_Rank` | +2.92 | +2.30 | +0.09% | t 不足 |
+| 94 | `IndustryNeutral_DealerNetBuying_60d_x_ROELevel_Rank` | +1.43 | +1.93 | +0.27% | t 不足 |
+| 95 | `IndustryNeutral_MarginDeleveragingSurprise_63d_OwnNoiseScaled_x_ROELevel_Rank` | +3.56 | +2.93 | +0.26% | 通過 |
+| 95 | `IndustryNeutral_MarginOverhangRelease_63d_x_ROELevel_x_Overhang_Rank` | +2.84 | +2.81 | +0.33% | t 不足 |
+| 96 | `IndustryNeutral_MarginDeleveragingSurprise_63d_OwnNoiseScaled_ROEResid_Rank` | +1.51 | +1.79 | +0.25% | 和已有因子太像、t 不足 |
+| 97 | `IndustryNeutral_ForeignNetBuyingSurprise_63d_OwnNoiseScaled_x_ROELevel_Rank` | +3.56 | +2.86 | +0.33% | 通過 |
+| 97 | `IndustryNeutral_ForeignNetBuyingSurprise_63d_OwnNoiseScaled_Rank` | +1.43 | +0.94 | +0.07% | t 不足 |
+| 98 | `IndustryNeutral_ForeignNetBuyingPressure_63d_OwnNoiseScaled_x_ROELevel_Rank` | +3.19 | +2.67 | +0.14% | 和已有因子太像、t 不足 |
+| 98 | `IndustryNeutral_ForeignNetBuyingPressure_63d_OwnNoiseScaled_x_EarningsYield_Rank` | +3.43 | +3.18 | -0.01% | 24 日中位數 ≤ 0 |
+| 99 | `IndustryNeutral_DealerNetBuyingSurprise_63d_OwnNoiseScaled_x_ROELevel_Rank` | +2.03 | +1.82 | +0.26% | t 不足 |
+| 99 | `IndustryNeutral_DealerNetBuyingSurprise_63d_OwnNoiseScaled_Rank` | -1.54 | -0.95 | -0.98% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 100 | `IndustryNeutral_ReturnSkewAversion_120d_Skip5_Rank` | +4.18 | +3.89 | -0.43% | 24 日中位數 ≤ 0 |
+| 100 | `IndustryNeutral_DownsideUpsideDeviationRatio_120d_Skip5_Rank` | -2.19 | -2.41 | -0.68% | t 不足、24 日中位數 ≤ 0、正的年度太少 |
+| 101 | `IndustryNeutral_ReturnSkewAversion_120d_Skip5_BetaResidual_Rank` | +3.91 | +3.13 | -0.02% | 24 日中位數 ≤ 0 |
+| 102 | `IndustryNeutral_SkewAversionBetaResid_x_20dMomSkip5_Rank` | +3.12 | +2.41 | -0.02% | t 不足、24 日中位數 ≤ 0 |
+| 103 | `IndustryNeutral_TrustNetSellingSurprise_63d_OwnNoiseScaled_x_ROELevel_Rank` | +4.38 | +4.06 | +0.55% | 通過 |
+| 103 | `IndustryNeutral_TrustNetSellingSurprise_63d_OwnNoiseScaled_Rank` | +1.54 | +1.59 | +0.04% | t 不足 |

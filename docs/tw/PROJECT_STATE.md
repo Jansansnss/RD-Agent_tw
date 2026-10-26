@@ -3,6 +3,32 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-26 (night): Alisa's ideas, third campaign, team industry groups
+
+**Alisa's strategy review** became ideas B1–B14 (`data/alpha_ideas.md`), first scored as fixed
+formulas (`tw_data/alpha_team_ideas_tw.py`): none passes the research gate; 1- to 5-day moves reverse
+in this universe, group rotation works only on the holdout, waiting for a rebound confirmation is
+worse than not waiting, and the reviewed eight-factor score has no edge (worse with its four hard
+conditions). **LightGBM combiner** (`tw_data/alpha_combiner_tw.py`): lost walk-forward to the
+equal-weight average and to 50/20/30 (D28).
+
+**Third campaign (T9):** rounds 30–103, 04:17–22:12, stopped by the $0.50 reserve watchdog (D27) at
+$0.45; $9.53 billed (LiteLLM said $4.79), 1,155 calls. 128 factors judged, 15 research passes, 0
+holdout confirmations. 9 of the 15 borrow a strong accepted leg (2 library composites, 7 "signal ×
+ROE level"); the best near-confirmation is round 67's revenue-growth revision (holdout t 1.6,
++4.38%). The coder's debug panel now holds two years (D26).
+
+**Industry groups (D30, D31):** `$industry_id` is now the team's V2 product-exposure family where a
+stock has one, else its FinMind industry-chain group (`tw_data/chain_groups_tw.py`); every industry
+test was re-run (61, then 73 loop factors, team ideas, holdout, reviews): no verdict improved
+materially; sales yield ranked within groups has research t 2.92.
+
+**Reports (zh-TW):** `docs/tw/reports/2026-10-26_alisa_ideas.md` (final, with an appendix of all 128
+factors) and `2026-10-26_team_summary.md`, synced to AI_cup_2026 `docs/rdagent/` (add-daily-agent).
+**Open for Jans:** a gate rule against blends (predictive power left after the library); fixed
+weights 50/20/30 vs equal-weight 5 (paper-track the other during the contest); a top-up for more
+mining.
+
 ## Snapshot — 2026-10-26 (evening): formal factor report template
 
 **Factor reports (T11 `[x]`, D32).** Jans: 正式的因子報告，打包後給大腦模型判斷；一份給人看、一份給

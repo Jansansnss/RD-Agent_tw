@@ -184,6 +184,14 @@ Research window only. Entry: T8 `[x]` + J5 + J7. Same try-ladder as T2.
   per round (round 24: 59 min, 109 calls). Round 29 passed 4 window variants of one idea
   (correlation 0.72–0.92 with each other): same-round passes were never compared, now fixed
   (`alpha_runner_tw.dedupe_round`, D23). Report: Claude Doc "RD-Agent 因子研究 flash 長跑報告".
+- 2026-10-26 04:17–22:12: third campaign (Jans: Alisa's ideas, run until the money runs out). Resumed
+  from the flash session's round 29 into `log/alpha_tw_alisa_20261026`; a watchdog in the run script
+  stopped it at the $0.50 reserve (D27; ended at $0.45, $9.53 billed). Rounds 30–103: 128 judged, 15
+  research passes, 0 confirmed. Round 30 lost both factors to the one-year debug panel (fixed, D26).
+  Steering through `data/alpha_ideas.md` (family caps, no blends, no more revenue) took effect only
+  partly: the feedback step's "New Hypothesis" usually picks the next round. 9 passes borrow a strong
+  accepted leg (composites; "× ROE level" from round 86). Report:
+  `docs/tw/reports/2026-10-26_alisa_ideas.md`.
 
 ### `[ ]` G4 · v1.1 export gate — PM, by 2026-10-30
 Research-gate passes → holdout confirmation (script outside the loop, once per batch) → T10. None
@@ -199,6 +207,9 @@ pass → keep the library for Demo Day; v1.1 ships without new alphas.
   `LiquiditySize_Rank_20d` is a size tilt (correlation 0.94 with log market value; a team decision,
   not an alpha); `SalesYield_LiquiditySize_70_30` is mostly sales yield, a value/defensive candidate
   pending a trailing-12-month revenue version and an industry cap.
+- 2026-10-26: the third campaign's 15 research passes all fail the holdout (best: round 67's
+  revenue-growth revision, t 1.6, +4.38%; worth paper tracking). Re-run under the team's industry
+  groups (D30, D31): still only the two candidates above.
 
 ### `[ ]` T10 · Export alpha cards — Implementer + contest team
 Plain pandas functions + YAML cards (ALPHA_FACTORY §9) into AI-cup-etf-agent through a PR; new

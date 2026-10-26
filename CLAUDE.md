@@ -188,6 +188,12 @@ Upstream classes got overridable attributes; TW subclasses set them:
   $1.93. For real spend read `GET https://api.deepseek.com/user/balance` before and after (a script
   that sources `.env`; never print the key). When the balance hits 0 the loop dies with "Insufficient
   Balance" after 10 retries per call; the last saved step resumes it.
+- **`data/alpha_ideas.md` steers the alpha loop only weakly**: the next hypothesis mostly follows the
+  previous round's feedback ("New Hypothesis"), which never sees the ideas file, so rules there
+  (family caps, "no more revenue") were ignored for several rounds on 2026-10-26. And the LLM learns
+  to pass the 0.6 correlation limit by borrowing a strong accepted leg (multi-signal composites,
+  "× ROE level", residuals to an accepted card): such passes carry no new information. Check a new
+  card's parts before believing it; a gate on predictive power left after the library is pending.
 - **Resuming a loop: `--loop_n` is the total, not the remainder.** `LoopBase.run()` restarts
   `loop_idx` at 0 and each finished round uses up one count, so `--path <session>/7/4_record
   --loop_n 2` runs nothing; for rounds 8 and 9 pass `--loop_n 10`. With `checkout` (the default in
