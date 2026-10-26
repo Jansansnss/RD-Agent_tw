@@ -23,7 +23,8 @@ Outputs (default data/alpha_tw/):
   alpha_panel.h5        key "data": (datetime, instrument) x float fields, for every stock
                         ever in the point-in-time universe (plus --official_list)
   universe_pit.csv      month_end, instrument, market, rank, market_value
-  instruments_meta.csv  instrument, name, market, industry, industry_id
+  instruments_meta.csv  instrument, name, market, industry (exchange), industry_id, group
+  groups_chain.csv      primary industry-chain group per stock (chain_groups_tw, D30)
   panel_meta.json       sources, date range, VWAP coverage
   coder/daily_pv.h5     for the alpha loop's LLM coder (DECISIONS D16): stock codes replaced by
                         S001.., research window only, no contest-list flag
@@ -49,12 +50,14 @@ import pandas as pd
 try:
     from rdagent.scenarios.qlib.tw_data._paths import DATA_DIR
     from rdagent.scenarios.qlib.tw_data.alpha_eval_tw import WINDOWS
+    from rdagent.scenarios.qlib.tw_data.chain_groups_tw import CHAIN_CSV, load_chain, primary_groups
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _paths import DATA_DIR
     from alpha_eval_tw import WINDOWS
+    from chain_groups_tw import CHAIN_CSV, load_chain, primary_groups
 
 # 4-digit codes starting 1-9 are common stocks (00xx = ETFs); 91xx are TDRs, not stocks.
 STOCK_CODE = re.compile(r"^[1-9]\d{3}$")
@@ -358,6 +361,12 @@ def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
     panel = panel.join(revenue_daily(revenue_monthly(rev[rev["instrument"].isin(codes)]), panel.index))
     panel = panel.join(membership(universe, panel.index))
     panel["$in_official"] = panel.index.get_level_values("instrument").isin(official).astype(float)
+    meta = meta.loc[meta.index.isin(codes)].copy()
+    if CHAIN_CSV.exists():  # groups from the industry chain (D30); exchange categories otherwise
+        groups = primary_groups(meta, load_chain(CHAIN_CSV))
+        meta["group"], meta["industry_id"] = groups["group"], groups["group_id"]
+    else:
+        print(f"WARN: {CHAIN_CSV} missing; $industry_id falls back to exchange categories")
     panel["$industry_id"] = panel.index.get_level_values("instrument").map(meta["industry_id"]).astype(float)
     panel = panel.astype("float64")
 
@@ -365,7 +374,9 @@ def build(input_dir: Path, out_dir: Path, start: str, raw_ohlcv: Path | None,
     panel.to_hdf(out_dir / "alpha_panel.h5", key="data", mode="w")
     write_coder_data(panel, out_dir)
     universe.to_csv(out_dir / "universe_pit.csv", index=False)
-    meta.loc[meta.index.isin(codes)].to_csv(out_dir / "instruments_meta.csv")
+    meta.to_csv(out_dir / "instruments_meta.csv")
+    if CHAIN_CSV.exists():
+        groups.to_csv(out_dir / "groups_chain.csv", encoding="utf-8")
 
     dates = panel.index.get_level_values("datetime")
     in_uni = panel["$in_universe"] == 1

@@ -36,6 +36,7 @@ except ImportError:
     from dump_alpha_panel_tw import CODER_DROP
 
 ALPHA_DIR = DATA_DIR / "alpha_tw"
+GROUP = "group"  # industry-chain group (D30); instruments_meta keeps the exchange category in "industry"
 MOSTLY = 0.7  # |correlation| above this with a plain exposure: the card is mostly that exposure
 PROMPT = Path(__file__).resolve().parent / "alpha_review_prompt_zh.md"
 BOOK_RULE = ("分數越高越值得買。每天在當月的 150 檔（每月底依指數權重或市值重選）裡排名，隔天用成交均價買前 24 名、"
@@ -93,7 +94,7 @@ def review(name: str, panel: pd.DataFrame, exp: dict[str, pd.Series], sid2code: 
     top = s.xs(last, level=0).reindex(uni).dropna().sort_values(ascending=False).head(24)
     for code in top.index:
         out["top24_last_day"].append({"code": code, "name": meta["name"].get(code, "?"),
-                                      "industry": meta["industry"].get(code, "?"),
+                                      "industry": meta[GROUP].get(code, "?"),
                                       "size_rank": int(size_rank.get(code, -1)),
                                       "official": bool(snap.loc[code, "$in_official"] == 1)})
 
@@ -110,7 +111,7 @@ def review(name: str, panel: pd.DataFrame, exp: dict[str, pd.Series], sid2code: 
         pick = s.xs(day, level=0).reindex(uni).dropna().sort_values(ascending=False).head(24).index
         size_pct.append(float(snap.loc[uni, "$market_value"].rank(pct=True).reindex(pick).mean()))
         for code in pick:
-            ind = meta["industry"].get(code, "?")
+            ind = meta[GROUP].get(code, "?")
             industries[ind] = industries.get(ind, 0) + 1
     total = sum(industries.values()) or 1
     out["holdout_book"] = {
@@ -198,6 +199,8 @@ def main() -> None:
     panel = pd.read_hdf(ALPHA_DIR / "alpha_panel.h5", key="data")
     sid2code = pd.read_csv(ALPHA_DIR / "coder_map.csv", dtype=str).set_index("sid")["instrument"]
     meta = pd.read_csv(ALPHA_DIR / "instruments_meta.csv", dtype={"instrument": str}).set_index("instrument")
+    if GROUP not in meta:  # panels built before D30 carry only the exchange category
+        meta[GROUP] = meta["industry"]
     exp = exposures(panel)
     meta_fields = json.loads((ALPHA_DIR / "panel_meta.json").read_text(encoding="utf-8"))["fields"]
     fields = [f for f in meta_fields if f not in CODER_DROP]  # what the loop's coder could read

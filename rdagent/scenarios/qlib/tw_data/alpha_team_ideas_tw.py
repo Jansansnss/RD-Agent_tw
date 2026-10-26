@@ -10,8 +10,12 @@ after the holdout months had happened, so their holdout numbers are not a clean 
 (ALPHA_FACTORY §7). Holdout numbers never go into data/alpha_ideas.md.
 
 Runs on the anonymized full panel (data/alpha_tw/coder_full), the data the loop's coder sees.
+Groups are the panel's $industry_id (each stock's primary industry-chain group, D30); with --multi
+every chain industry a stock is tagged with counts, as in the team's group review: each industry
+is computed over all its tagged members, and a stock gets the mean over its industries.
 
     python -m rdagent.scenarios.qlib.tw_data.alpha_team_ideas_tw --json data/alpha_tw/team_ideas.json
+    python -m rdagent.scenarios.qlib.tw_data.alpha_team_ideas_tw --multi --json data/alpha_tw/team_ideas_multi.json
 """
 
 import argparse
@@ -37,7 +41,7 @@ FLOWS = ("$foreign_net", "$trust_net", "$dealer_net")
 class Wide:
     """Wide (date x instrument) views shared by the formulas."""
 
-    def __init__(self, panel: pd.DataFrame):
+    def __init__(self, panel: pd.DataFrame, members: pd.DataFrame | None = None):
         col = lambda c: panel[c].unstack("instrument")  # noqa: E731
         self.close = col("$close")
         like = lambda c: col(c).reindex_like(self.close)  # noqa: E731
@@ -47,6 +51,8 @@ class Wide:
         self.volume, self.amount = like("$volume"), like("$amount")
         self.shares = like("$issued_shares").replace(0, np.nan)
         self.flow = {c: like(c).fillna(0.0) for c in FLOWS}
+        # instrument x industry, 1 = tagged: every chain industry counts (--multi)
+        self.members = None if members is None else members.reindex(self.close.columns).fillna(0.0)
 
     def mom(self, n: int) -> pd.DataFrame:
         return self.close.pct_change(n, fill_method=None)
@@ -60,6 +66,8 @@ class Wide:
 
     def group(self, x: pd.DataFrame, how: str = "mean", leave_out: bool = False) -> pd.DataFrame:
         """Industry mean (or sum) per day over universe members with a value; NaN for small groups."""
+        if self.members is not None:
+            return self._group_multi(x, how, leave_out)
         df = pd.DataFrame({"v": x.where(self.uni).stack(future_stack=True),
                            "g": self.ind.stack(future_stack=True)}).dropna()
         keys = [df.index.get_level_values(0), df["g"]]
@@ -67,6 +75,33 @@ class Wide:
         n = df.groupby(keys)["v"].transform("count")
         out = total if how == "sum" else (total - df["v"]) / (n - 1) if leave_out else total / n
         return out.where(n >= MIN_GROUP).unstack().reindex_like(x)
+
+    def _group_multi(self, x: pd.DataFrame, how: str, leave_out: bool) -> pd.DataFrame:
+        """group() when a stock can be in several industries: the mean over its industries."""
+        v = x.where(self.uni)
+        ok = v.notna().to_numpy(dtype=float)
+        vals = v.fillna(0.0).to_numpy()
+        total = np.zeros_like(vals)
+        count = np.zeros_like(vals)
+        for g in self.members.columns:
+            cols = self.members[g].to_numpy() > 0
+            s = vals[:, cols].sum(axis=1, keepdims=True)
+            n = ok[:, cols].sum(axis=1, keepdims=True)
+            if how == "sum":
+                gv = np.repeat(s, cols.sum(), axis=1)
+            elif leave_out:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    gv = (s - vals[:, cols]) / (n - ok[:, cols])
+                gv[ok[:, cols] == 0] = np.nan
+            else:
+                gv = np.repeat(s / np.where(n > 0, n, np.nan), cols.sum(), axis=1)
+            gv[np.repeat(n, cols.sum(), axis=1) < MIN_GROUP] = np.nan
+            has = ~np.isnan(gv)
+            total[:, cols] += np.where(has, gv, 0.0)
+            count[:, cols] += has
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out = np.where(count > 0, total / count, np.nan)
+        return pd.DataFrame(out, index=x.index, columns=x.columns)
 
     def excess(self, x: pd.DataFrame) -> pd.DataFrame:
         """Group mean minus the market; stocks in small groups count as neutral (0)."""
@@ -196,13 +231,24 @@ def rebound_events(w: Wide, vwap: pd.DataFrame, window: str) -> dict:
     return out
 
 
+def chain_members() -> pd.DataFrame:
+    """Anonymized instrument x chain industry (1 = tagged), from data/alpha_tw/groups_chain.csv."""
+    groups = pd.read_csv(DATA_DIR / "alpha_tw" / "groups_chain.csv", dtype={"instrument": str})
+    sid = pd.read_csv(DATA_DIR / "alpha_tw" / "coder_map.csv", dtype={"instrument": str}).set_index("instrument")["sid"]
+    tags = groups["all_groups"].fillna("").str.split("|")
+    tags = [t if t != [""] else [g] for t, g in zip(tags, groups["group"])]
+    long = pd.DataFrame({"instrument": groups["instrument"].map(sid), "group": tags}).explode("group")
+    return pd.crosstab(long["instrument"], long["group"]).clip(upper=1).astype(float)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--panel", default=str(DATA_DIR / "alpha_tw" / "coder_full" / "daily_pv.h5"))
     parser.add_argument("--json", default=None)
+    parser.add_argument("--multi", action="store_true", help="Every chain industry a stock is tagged with counts")
     args = parser.parse_args()
     panel = pd.read_hdf(args.panel, key="data")
-    w = Wide(panel)
+    w = Wide(panel, chain_members() if args.multi else None)
     library = {k: ev.BASELINES[k](panel) for k in ("rev_accel", "rev_yoy", "mom60_skip5")}
     results = {}
     print("HOLDOUT numbers below are not a clean test (ideas written after it) and never go into a prompt.")

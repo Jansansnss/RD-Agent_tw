@@ -256,6 +256,23 @@ with the idea number. Holdout numbers stay out of the file. The ideas were writt
 holdout months, so a card derived from them that passes the holdout is a reference only; the
 contest period confirms it. Revisit when more teammate ideas arrive (C1.., same rules).
 
+**D30 — Industry groups come from the industry chain, not the exchange category** *(2026-10-26)*
+Jans: 未來產業分類先以 relations_groups_review_T2026-10-21_v001.pdf 為主；過去有關產業分類的測試要
+重新跑. The PDF is the team's review of FinMind TaiwanStockIndustryChain (TPEx 產業價值鏈) for the 150
+contest stocks. The same dataset fetched on 10/26 (`collect_finmind` now saves it as
+`industry_chain.csv`) matches the PDF's 559 rows exactly and covers 298 of the panel's 305 stocks. A
+stock can carry several chain industries (台達電 21), so `chain_groups_tw` picks one primary group:
+the industry with the most sub-industry rows among those fitting the exchange category, ties to the
+category's main industry, one override (中租-KY → 金融); the 7 stocks without chain rows (delisted)
+take their category's main industry. 37 groups. `$industry_id` was swapped in all four panels in
+place (backup `data/alpha_tw/_industry_twse_backup/`), so prices and windows are unchanged; the
+builder does the same on a rebuild. Re-run: Alisa's group ideas (also with every tagged industry
+counted, `alpha_team_ideas_tw --multi`, as the PDF counts them), the 61 judged loop factors that
+read `$industry_id`, the holdout check and the two reviews. No verdict improved; sales yield ranked
+within groups rose from t 2.13 to 2.35. Cost: the tags are a 2026-10 snapshot, so group factors over
+2021–2026 assume industries did not change, and themes such as 雲端運算 or 人工智慧 were tagged with
+hindsight. Revisit with dated chain snapshots for point-in-time groups.
+
 ---
 
 *Template for new entries:*

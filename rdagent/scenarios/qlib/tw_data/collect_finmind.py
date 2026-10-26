@@ -1437,6 +1437,12 @@ def download_trader_info(client, output_dir):
                         "TaiwanSecuritiesTraderInfo", output_dir, "trader_info.csv")
 
 
+def download_industry_chain(client, output_dir):
+    """Industry and sub-industry tags per stock (TPEx 產業價值鏈); the alpha panel's groups (D30)."""
+    _download_one_shot(client, "產業鏈 (TaiwanStockIndustryChain)",
+                        "TaiwanStockIndustryChain", output_dir, "industry_chain.csv")
+
+
 # ===========================================================================
 # Sponsor expansion: derivatives daily (futures / options)
 # ===========================================================================
@@ -1664,7 +1670,7 @@ def main() -> None:
                          help="Skip exchange_rate, interest_rate, gold, crude_oil, bonds_yield, "
                               "fear_greed.")
     parser.add_argument("--skip_static", action="store_true",
-                         help="Skip stock_info, us_stock_info, futopt_info, trader_info.")
+                         help="Skip stock_info, us_stock_info, futopt_info, trader_info, industry_chain.")
     parser.add_argument("--skip_derivatives", action="store_true",
                          help="Skip futures/options daily + institutional.")
 
@@ -1788,6 +1794,7 @@ def main() -> None:
         download_us_stock_info(client, out)
         download_futopt_info(client, out)
         download_trader_info(client, out)
+        download_industry_chain(client, out)
 
     # ---------- Sponsor expansion: derivatives daily ----------
     if not args.skip_derivatives:
