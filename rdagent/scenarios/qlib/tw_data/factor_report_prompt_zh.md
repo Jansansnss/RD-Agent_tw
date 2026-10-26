@@ -8,6 +8,7 @@
 - 看過結果才想到的解釋，一律放進 post_hoc，不能寫成已驗證。
 - predictions.registered 若不是 before_results，要在 summary 說明預測是事後寫的。
 - 程式的警訊（verdict_by_code.flags）每一條都要在 alternatives 或 risks 回應。
+- 若 kind 是 portfolio（策略報告），沒有 IC 和五分位：選股能力看 selection 與 selection_by_year，風格看 style_exposure（持股的平均百分位，0.5 為中性），比賽規則看 contest_rules 與 verdict_by_code.contest_rules，換手看 book.ann_turnover_times。factor.training 沒寫，或訓練、調參用到研究期的資料，研究期的數字就是樣本內，要在 summary 說明。
 
 <!-- INPUTS -->
 

@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tw-factor-report/1",
+  "title": "report.json of tw-factor-report/1 (docs/tw/FACTOR_REPORT.md)",
+  "description": "Written by factor_report_tw.py (kind factor) and portfolio_report_tw.py (kind portfolio). facts, prediction_checks and verdict_by_code come from code; claims from the author; review from a different model or teammate. *_pct are percent numbers (1.5 = 1.5%); t is a Newey-West t; null = not computable (e.g. annualized under a year). New optional keys may appear within /1; a renamed or removed key bumps the version.",
+  "type": "object",
+  "required": ["schema", "kind", "how_to_read", "factor", "setup", "verdict_by_code", "facts", "facts_custom",
+               "prediction_checks", "claims", "review", "provenance"],
+  "properties": {
+    "schema": {"const": "tw-factor-report/1"},
+    "kind": {"enum": ["factor", "portfolio"],
+             "description": "factor: a score per stock, judged by IC and the shared top-24 book. portfolio: the author's daily target weights, judged by the selection test and the contest's rules."},
+    "how_to_read": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "factor": {"$ref": "#/$defs/factor"},
+    "setup": {"$ref": "#/$defs/setup"},
+    "verdict_by_code": {"$ref": "#/$defs/verdict"},
+    "facts": {
+      "type": "object",
+      "required": ["research"],
+      "properties": {
+        "research": {"type": "object"},
+        "holdout": {"oneOf": [{"$ref": "#/$defs/withheld"}, {"type": "object", "required": ["window"]}]}
+      }
+    },
+    "facts_custom": {"type": "array", "items": {"$ref": "#/$defs/custom_test"}},
+    "prediction_checks": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+    "claims": {
+      "type": "object",
+      "required": ["thesis", "predictions", "interpretation"],
+      "properties": {
+        "thesis": {"type": ["object", "null"]},
+        "predictions": {"type": ["object", "null"]},
+        "interpretation": {"type": ["object", "null"]}
+      }
+    },
+    "review": {"type": ["object", "null"]},
+    "provenance": {
+      "type": "object",
+      "required": ["generated_at", "git_commit", "panel_built_at", "data_through", "command", "generator"],
+      "properties": {"data_through": {"$ref": "#/$defs/date"}}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "factor"}}},
+      "then": {
+        "properties": {
+          "facts": {"properties": {"research": {"$ref": "#/$defs/factor_window"},
+                                   "holdout": {"oneOf": [{"$ref": "#/$defs/withheld"}, {"$ref": "#/$defs/factor_window"}]}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "portfolio"}}},
+      "then": {
+        "properties": {
+          "verdict_by_code": {"required": ["contest_rules"]},
+          "facts": {"properties": {"research": {"$ref": "#/$defs/portfolio_window"},
+                                   "holdout": {"oneOf": [{"$ref": "#/$defs/withheld"}, {"$ref": "#/$defs/portfolio_window"}]}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"setup": {"properties": {"holdout": {"enum": ["none", "status"]}}}}},
+      "then": {
+        "properties": {
+          "facts": {"properties": {"holdout": {"$ref": "#/$defs/withheld"}}},
+          "claims": {"properties": {"interpretation": {"not": {"type": "object", "required": ["holdout_notes"]}}}},
+          "review": {"not": {"type": "object", "required": ["holdout_notes"]}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "num": {"type": ["number", "null"]},
+    "text": {"type": ["string", "null"]},
+    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "horizon": {"enum": [1, 5, 10, 20]},
+    "factor": {
+      "type": "object",
+      "required": ["id", "horizon_days"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"$ref": "#/$defs/text"},
+        "author": {"$ref": "#/$defs/text"},
+        "pod": {"type": ["string", "null"], "description": "one of 營收獲利動能, 價格動能, 資金流向, 事件催化, 風險控管; anything else is flagged pod_missing"},
+        "one_liner": {"$ref": "#/$defs/text"},
+        "formula": {"$ref": "#/$defs/text"},
+        "inputs": {"type": ["array", "string", "null"]},
+        "data_timing": {"$ref": "#/$defs/text"},
+        "training": {"$ref": "#/$defs/text", "description": "which data trained or tuned the model and how often it retrains; a portfolio without it is flagged training_unstated"},
+        "direction": {"$ref": "#/$defs/text"},
+        "horizon_days": {"$ref": "#/$defs/horizon"},
+        "trials": {"type": ["integer", "string", "null"]},
+        "declared_on": {"$ref": "#/$defs/text"},
+        "source": {"$ref": "#/$defs/text"},
+        "dplan_template": {"$ref": "#/$defs/text"},
+        "source_authority": {"$ref": "#/$defs/text"}
+      }
+    },
+    "setup": {
+      "type": "object",
+      "required": ["universe", "label", "costs", "data_through", "holdout"],
+      "properties": {
+        "data_through": {"$ref": "#/$defs/date"},
+        "holdout": {"enum": ["none", "status", "full"]}
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "required": ["research_gate", "trials", "luck_max_abs_t", "flags", "holdout"],
+      "properties": {
+        "research_gate": {
+          "type": "object",
+          "required": ["passed", "horizon_days", "failed"],
+          "properties": {"passed": {"type": "boolean"}, "horizon_days": {"$ref": "#/$defs/horizon"},
+                         "failed": {"type": "array", "items": {"type": "string"}}}
+        },
+        "contest_rules": {
+          "type": "object",
+          "required": ["passed", "violation_days_pct"],
+          "properties": {"passed": {"type": "boolean"}, "violation_days_pct": {"$ref": "#/$defs/rule_pct"}}
+        },
+        "trials": {"type": "integer", "minimum": 1},
+        "luck_max_abs_t": {"type": "number", "minimum": 0},
+        "flags": {"type": "array", "items": {"type": "object", "required": ["code", "detail"],
+                                             "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}}},
+        "holdout": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {"status": {"enum": ["confirmed", "not_confirmed", "not_scored"]},
+                         "failed_checks": {"type": "array", "items": {"type": "string"}}}
+        }
+      }
+    },
+    "withheld": {
+      "type": "object",
+      "required": ["withheld"],
+      "properties": {"withheld": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "custom_test": {
+      "type": "object",
+      "required": ["name", "method", "results", "self_reported"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "method": {"type": "string", "minLength": 1},
+        "results": {"type": "object", "minProperties": 1},
+        "self_reported": {"const": true}
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": ["key", "predicted", "status", "observed", "status_zh"],
+      "properties": {
+        "key": {"enum": ["sign", "peak_horizon_days", "stronger_in", "industry_neutral", "regime", "other"]},
+        "status": {"enum": ["supported", "weak", "not_supported", "contradicted", "manual"]},
+        "observed": {"$ref": "#/$defs/text"}
+      }
+    },
+    "per_horizon": {
+      "type": "object",
+      "required": ["1", "5", "10", "20"],
+      "propertyNames": {"enum": ["1", "5", "10", "20"]}
+    },
+    "rule_pct": {
+      "type": "object",
+      "required": ["names", "max_weight", "max_weight_2330", "cash", "universe"],
+      "additionalProperties": {"$ref": "#/$defs/num"}
+    },
+    "book": {
+      "type": "object",
+      "required": ["total_return_pct", "total_excess_vs_b0_pct", "ann_return_pct", "ann_vol_pct", "return_to_vol",
+                   "max_drawdown_pct", "ann_excess_vs_b0_pct", "tracking_error_pct", "ir_vs_b0", "beta_vs_b0",
+                   "turnover_per_rebalance_pct", "ann_cost_pct", "ann_excess_at_2x_cost_pct"],
+      "additionalProperties": {"$ref": "#/$defs/num"}
+    },
+    "bench": {
+      "type": "object",
+      "required": ["name", "from", "total_pct", "ann_return_pct", "ann_vol_pct", "return_to_vol", "max_drawdown_pct",
+                   "beta_to_taiex"],
+      "properties": {"name": {"type": "string"}, "from": {"$ref": "#/$defs/date"}}
+    },
+    "window_common": {
+      "type": "object",
+      "required": ["window", "trading_days", "book", "windows_24d", "by_year", "benchmarks", "active_etfs", "robustness",
+                   "holdings"],
+      "properties": {
+        "window": {"type": "array", "items": {"$ref": "#/$defs/date"}, "minItems": 2, "maxItems": 2},
+        "trading_days": {"type": "integer"},
+        "book": {"$ref": "#/$defs/book"},
+        "windows_24d": {
+          "type": "object",
+          "required": ["median_pct", "p10_pct", "p90_pct", "win_rate_pct"],
+          "additionalProperties": {"$ref": "#/$defs/num"}
+        },
+        "by_year": {
+          "type": "array",
+          "items": {"type": "object",
+                    "required": ["year", "months", "book_pct", "b0_pct", "0050_pct", "taiex_pct", "excess_pct"]}
+        },
+        "benchmarks": {"type": "array", "items": {"$ref": "#/$defs/bench"}, "minItems": 1},
+        "active_etfs": {
+          "type": "object",
+          "required": ["compared", "book_beat", "median_book_minus_etf_pct"],
+          "properties": {"compared": {"type": "integer"}, "book_beat": {"type": "integer"},
+                         "median_book_minus_etf_pct": {"$ref": "#/$defs/num"}}
+        },
+        "robustness": {
+          "type": "object",
+          "required": ["all", "small", "large", "small_minus_large_t", "industry_neutral", "market_up", "market_down"]
+        },
+        "holdings": {"type": "object", "required": ["size_percentile", "industries_pct"]}
+      }
+    },
+    "factor_window": {
+      "allOf": [{"$ref": "#/$defs/window_common"}],
+      "required": ["coverage_pct", "ic", "ic_by_year", "quintiles", "top10_24d", "style_corr", "library_corr_top"],
+      "properties": {
+        "ic": {
+          "allOf": [{"$ref": "#/$defs/per_horizon"}],
+          "additionalProperties": {"type": "object", "required": ["mean", "t", "icir", "positive_days_pct"],
+                                   "additionalProperties": {"$ref": "#/$defs/num"}}
+        },
+        "quintiles": {
+          "type": "object",
+          "required": ["horizon_days", "excess_pct", "q5_minus_q1_pct", "t", "monotonicity"],
+          "properties": {"excess_pct": {"type": "array", "items": {"$ref": "#/$defs/num"}, "minItems": 5, "maxItems": 5}}
+        },
+        "style_corr": {"type": "object", "additionalProperties": {"$ref": "#/$defs/num"}}
+      }
+    },
+    "portfolio_window": {
+      "allOf": [{"$ref": "#/$defs/window_common"}],
+      "required": ["decision_days", "selection", "selection_by_year", "style_exposure", "contest_rules"],
+      "properties": {
+        "decision_days": {"type": "integer"},
+        "selection": {
+          "allOf": [{"$ref": "#/$defs/per_horizon"}],
+          "additionalProperties": {"type": "object",
+                                   "required": ["weighted_excess_pct", "equal_weight_excess_pct", "hit_rate_pct", "t",
+                                                "days"]}
+        },
+        "style_exposure": {"type": "object", "additionalProperties": {"$ref": "#/$defs/num"}},
+        "contest_rules": {
+          "type": "object",
+          "required": ["decision_days", "violation_days_pct", "buffer_days_pct"],
+          "properties": {"violation_days_pct": {"$ref": "#/$defs/rule_pct"}}
+        }
+      }
+    }
+  }
+}

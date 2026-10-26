@@ -229,6 +229,10 @@ stage 1 (declaration, before results) and stage 2 (interpretation), declarations
   Both read as style tilts (cap 20%): large + liquid adds ~nothing to a top-24 book in research;
   sales yield works only in down markets and only in the smaller half. Reviewer holdout notes
   stay out of report.json (`holdout_notes`).
+- 2026-10-27: strategies too (D33): `portfolio_report_tw` scores a teammate's daily weights
+  (selection test instead of IC, contest rules per decision day); hand-in contract
+  `docs/tw/REPORT_HANDIN.md`, JSON Schema and standalone checker. Next: the first real teammate
+  hand-in; the decision model's prompt reads both kinds.
 
 ### `[ ]` S5 · Raw `TaiwanStockPrice` → exact VWAP — `risky` (collector)
 Collect raw daily prices (by date, ~4.4K calls) so VWAP is exact everywhere and FinMind's adjusted

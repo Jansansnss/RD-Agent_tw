@@ -101,7 +101,10 @@ HOW_TO_READ = [  # first lines of report.json, so a model that never saw FACTOR_
     "不滿一年的期間不年化（值為 null），請看累積。",
     "book：每天選分數最高的 24 檔等權、隔日 VWAP 成交、每 5 日調整、前 36 名內續抱、扣實際成本。"
     "B0：當月 150 檔等權。",
+    "facts_custom 是作者用自己的系統算的數字（自評），沒經過共用評分，份量比 facts 低。",
 ]
+FACTOR_KEYS = ("id", "name", "author", "pod", "one_liner", "formula", "inputs", "data_timing", "training", "direction",
+               "horizon_days", "trials", "declared_on", "source", "dplan_template", "source_authority")
 STATUS_ZH = {"supported": "支持", "weak": "方向對、不顯著", "not_supported": "沒有支持",
              "contradicted": "相反", "manual": "程式無法檢查"}
 ROLE_ZH = {"selection_alpha": "選股訊號", "style_tilt": "刻意的風格傾斜", "risk_control": "風險控管",
@@ -245,7 +248,7 @@ class Bench:
 class Ctx:
     """Wide (date x stock) frames shared by every analysis."""
 
-    def __init__(self, panel: pd.DataFrame, values: pd.Series):
+    def __init__(self, panel: pd.DataFrame, values: pd.Series | None = None):
         wide = lambda col: panel[col].unstack("instrument")  # noqa: E731
         self.panel = panel
         self.vwap = wide("$vwap")
@@ -254,7 +257,7 @@ class Ctx:
         self.mask = like("$in_universe").eq(1)
         self.mv = like("$market_value").where(lambda x: x > 0)
         self.ind = like("$industry_id")
-        self.a = ev._to_wide(values, self.vwap)
+        self.a = ev._to_wide(values, self.vwap) if values is not None else None  # no score in a portfolio report
         meta = pd.read_csv(ALPHA_DIR / "instruments_meta.csv", dtype={"instrument": str}).set_index("instrument")
         self.name = meta["name"].to_dict()
         self.group = meta["group" if "group" in meta else "industry"].to_dict()
@@ -393,6 +396,23 @@ def analyze(ctx: Ctx, values: pd.Series, window: str, h: int, library: dict, sty
     }
 
     book = end_dated(ev.topk_book(ctx.a, ctx.vwap, ctx.mask, i0, i1 - 1), ctx.dates)
+    facts = book_facts(book, bench)
+    by_year_ic = m["ic"][str(h)]["by_year"]
+    facts["yearly"]["ic"] = [by_year_ic.get(int(y), {}).get("mean", np.nan) for y in facts["yearly"].index]
+    corr_styles = {k: float(ev.rank_corr(ctx.a, ev._to_wide(v, ctx.vwap), ctx.mask)[in_win].mean())
+                   for k, v in styles.items()}
+    return {
+        "window": window, "start": m["start"], "end": m["end"], "days": int(i1 - i0), "judge": m,
+        "gate": {"passed": passed, "reasons": reasons, "rules": rules}, "robust": robust,
+        "quintiles": quintiles(ctx, fwd, usable, h), **facts, "style_corr": corr_styles,
+        "mostly": [k for k, v in corr_styles.items() if abs(v) > MOSTLY and k != "mom20_crowding"],
+        "holdings": holdings(ctx, i0, i1),
+    }
+
+
+def book_facts(book: pd.DataFrame, bench: Bench) -> dict:
+    """What a daily book (end-dated rows with net, cost and bench) did against the benchmarks: the
+    comparison table, each active ETF, yearly and monthly excess and rolling 24-day windows."""
     bret = bench.returns.reindex(book.index)
     etf_avg = bret[bench.etfs].mean(axis=1).where(bret[bench.etfs].notna().sum(axis=1) >= 3)
     series = {"book": book["net"], "b0": book["bench"], **{c: bret[c] for c in INDEXES}, "etf_avg": etf_avg}
@@ -413,36 +433,26 @@ def analyze(ctx: Ctx, values: pd.Series, window: str, h: int, library: dict, sty
         if len(r) >= 20:
             etf_rows.append({"code": code, "name": bench.names.get(code, code), "from": r.index[0], "days": len(r),
                              "etf": compound(r), "book": compound(book["net"].reindex(r.index))})
-
     year = lambda s: np.expm1(np.log1p(s).groupby(s.index.year).sum(min_count=1))  # noqa: E731
     yearly = pd.DataFrame({"book": year(book["net"]), "b0": year(book["bench"]),
                            "0050": year(bret["0050"]), "TAIEX": year(bret["TAIEX"])})
     yearly["excess"] = yearly["book"] - yearly["b0"]
-    by_year_ic = m["ic"][str(h)]["by_year"]
-    yearly["ic"] = [by_year_ic.get(int(y), {}).get("mean", np.nan) for y in yearly.index]
     yearly["months"] = book.groupby(book.index.year).apply(lambda b: b.index.month.nunique())
-    month = book.groupby(book.index.to_period("M"))
-    monthly = month.apply(lambda b: compound(b["net"]) - compound(b["bench"]))
+    monthly = book.groupby(book.index.to_period("M")).apply(lambda b: compound(b["net"]) - compound(b["bench"]))
     roll = lambda s: np.expm1(np.log1p(s).rolling(ev.CONTEST_DAYS).sum())  # noqa: E731
-    roll24 = (roll(book["net"]) - roll(book["bench"])).dropna()
-
-    corr_styles = {k: float(ev.rank_corr(ctx.a, ev._to_wide(v, ctx.vwap), ctx.mask)[in_win].mean())
-                   for k, v in styles.items()}
-    return {
-        "window": window, "start": m["start"], "end": m["end"], "days": int(i1 - i0), "judge": m,
-        "gate": {"passed": passed, "reasons": reasons, "rules": rules}, "robust": robust,
-        "quintiles": quintiles(ctx, fwd, usable, h), "book": book, "bench_rows": rows, "etf_rows": etf_rows,
-        "bench_ret": bret, "perf_book": perf(book["net"]), "perf_b0": perf(book["bench"]),
-        "vs_b0": relative(book["net"], book["bench"]),
-        "ann_excess_2x_cost": perf(book["net"] - book["cost"])["ann_return"] - perf(book["bench"])["ann_return"],
-        "yearly": yearly, "monthly": monthly, "roll24": roll24, "style_corr": corr_styles,
-        "mostly": [k for k, v in corr_styles.items() if abs(v) > MOSTLY and k != "mom20_crowding"],
-        "holdings": holdings(ctx, i0, i1),
-    }
+    ann = lambda s: perf(s).get("ann_return", float("nan"))  # noqa: E731
+    return {"book": book, "bench_ret": bret, "bench_rows": rows, "etf_rows": etf_rows, "yearly": yearly,
+            "monthly": monthly, "roll24": (roll(book["net"]) - roll(book["bench"])).dropna(),
+            "perf_book": perf(book["net"]), "perf_b0": perf(book["bench"]),
+            "vs_b0": relative(book["net"], book["bench"]),
+            "ann_excess_2x_cost": ann(book["net"] - book["cost"]) - ann(book["bench"])}
 
 
-def check_predictions(pred: dict, r: dict, h: int) -> list[dict]:
-    """The author's stage-1 predictions against the research window, by fixed rules."""
+def check_predictions(pred: dict, r: dict, h: int, label: str = "IC", fmt=None) -> list[dict]:
+    """The author's stage-1 predictions against the research window, by fixed rules. A portfolio report
+    passes its selection test in r["judge"]["ic"] with label "持股超額" and a percent fmt."""
+    fmt = fmt or (lambda v: f"{v:+.4f}")
+    sp = " " if label.isascii() else ""  # no space between Chinese words: "平均持股超額最高在"
     want = {"positive": 1, "negative": -1}.get(str(pred.get("sign", "")).lower())
     ic, rb = r["judge"]["ic"], r["robust"]
     t_main = ic[str(h)]["t_nw"]
@@ -458,7 +468,7 @@ def check_predictions(pred: dict, r: dict, h: int) -> list[dict]:
         out.append({"key": key, "predicted": predicted, "status": status, "observed": observed})
 
     if want:
-        add("sign", pred["sign"], grade(want * t_main), f"{h} 日 IC {ic[str(h)]['mean']:+.4f}（t {t_main:+.2f}）")
+        add("sign", pred["sign"], grade(want * t_main), f"{h} 日{sp}{label} {fmt(ic[str(h)]['mean'])}（t {t_main:+.2f}）")
     peak = pred.get("peak_horizon_days")
     if peak in ev.HORIZONS:
         # Mean IC, not t: a drift that lasts D days makes IC grow up to h = D; t falls with h anyway,
@@ -466,21 +476,22 @@ def check_predictions(pred: dict, r: dict, h: int) -> list[dict]:
         ics = {hh: sign_of * ic[str(hh)]["mean"] for hh in ev.HORIZONS}
         best = max(ics, key=lambda hh: ics[hh] if np.isfinite(ics[hh]) else -np.inf)
         gap = abs(ev.HORIZONS.index(best) - ev.HORIZONS.index(peak))
-        curve = "、".join(f"{hh} 日 {ics[hh] * sign_of:+.4f}" for hh in ev.HORIZONS)
+        curve = "、".join(f"{hh} 日 {fmt(ics[hh] * sign_of)}" for hh in ev.HORIZONS)
         add("peak_horizon_days", peak, "supported" if gap == 0 else "weak" if gap == 1 else "not_supported",
-            f"平均 IC 最高在 {best} 日（{curve}）")
+            f"平均{sp}{label}{sp}最高在 {best} 日（{curve}）")
     stronger = pred.get("stronger_in")
     if stronger in ("small", "large", "none"):
         t = sign_of * rb["small_minus_large_t"]
         status = {"small": grade(t), "large": grade(-t)}.get(stronger, "supported" if abs(t) < 2 else "not_supported")
-        add("stronger_in", stronger, status, f"小型半 IC {rb['small']['mean']:+.4f}、大型半 {rb['large']['mean']:+.4f}；"
+        add("stronger_in", stronger, status,
+            f"小型半{sp}{label} {fmt(rb['small']['mean'])}、大型半 {fmt(rb['large']['mean'])}；"
             f"差的 t {rb['small_minus_large_t']:+.2f}")
     neutral = pred.get("industry_neutral")
     if neutral in ("survives", "weakens"):
         t_n = sign_of * rb["industry_neutral"]["t"]
         weakened = t_n < 0.5 * sign_of * t_main
         status = grade(t_n) if neutral == "survives" else "supported" if weakened else "not_supported"
-        add("industry_neutral", neutral, status, f"產業中性 IC {rb['industry_neutral']['mean']:+.4f}"
+        add("industry_neutral", neutral, status, f"產業中性{sp}{label} {fmt(rb['industry_neutral']['mean'])}"
             f"（t {rb['industry_neutral']['t']:+.2f}）；原始 t {t_main:+.2f}")
     regime = pred.get("regime")
     if regime in ("up", "down", "both"):
@@ -493,7 +504,7 @@ def check_predictions(pred: dict, r: dict, h: int) -> list[dict]:
             hit, other, t_hit = (mu, md, tu) if regime == "up" else (md, mu, td)
             status = "supported" if hit > other and t_hit >= 2 else "weak" if hit > other else "not_supported"
         add("regime", regime, status,
-            f"大盤上漲時 IC {up['mean']:+.4f}（t {up['t']:+.2f}）；下跌時 {down['mean']:+.4f}（t {down['t']:+.2f}）")
+            f"大盤上漲時{sp}{label} {fmt(up['mean'])}（t {up['t']:+.2f}）；下跌時 {fmt(down['mean'])}（t {down['t']:+.2f}）")
     for text in pred.get("other") or []:
         add("other", text, "manual", None)
     return out
@@ -577,12 +588,38 @@ def bench_json(row: dict, names: dict) -> dict:
     return out
 
 
-def window_json(r: dict, h: int) -> dict:
-    m, b = r["judge"], r["judge"]["book"]
-    names = {"book": "因子前 24 名（扣成本）", "b0": "B0：150 檔等權（不扣成本）", **INDEXES,
-             "etf_avg": "主動式 ETF 平均（台股型）"}
+def book_json(r: dict) -> dict:
+    """The book's numbers of one window, for factor and portfolio reports alike."""
+    b = r["judge"]["book"]
+    return {"total_return_pct": P(r["perf_book"]["total"]), "total_excess_vs_b0_pct": P(r["vs_b0"]["total_excess"]),
+            "ann_return_pct": P(r["perf_book"]["ann_return"]), "ann_vol_pct": P(r["perf_book"]["ann_vol"]),
+            "return_to_vol": R(r["perf_book"]["ret_to_vol"], 2), "max_drawdown_pct": P(r["perf_book"]["max_dd"]),
+            "ann_excess_vs_b0_pct": P(b["ann_excess_net"]) if r["days"] >= TD else None,
+            "tracking_error_pct": P(r["vs_b0"]["tracking_error"]),
+            "ir_vs_b0": R(r["vs_b0"]["ir"], 2), "beta_vs_b0": R(b["beta_vs_b0"], 2),
+            "turnover_per_rebalance_pct": P(b["turnover_per_rebalance"], 1), "ann_cost_pct": P(b["ann_cost"]),
+            "ann_excess_at_2x_cost_pct": P(r["ann_excess_2x_cost"])}
+
+
+def market_json(r: dict, book_name: str, who: str) -> dict:
+    """24-day windows, benchmarks and active ETFs of one window."""
+    w24 = r["judge"]["windows_24d"]
+    names = {"book": book_name, "b0": "B0：150 檔等權（不扣成本）", **INDEXES, "etf_avg": "主動式 ETF 平均（台股型）"}
     etfs = r["etf_rows"]
     gaps = [e["book"] - e["etf"] for e in etfs]
+    return {
+        "windows_24d": {"median_pct": P(w24["median"]), "p10_pct": P(w24["p10"]), "p90_pct": P(w24["p90"]),
+                        "win_rate_pct": P(w24["win_rate"], 1)},
+        "benchmarks": [bench_json(row, names) for row in r["bench_rows"]],
+        "active_etfs": {"compared": len(etfs), "book_beat": sum(e["book"] > e["etf"] for e in etfs),
+                        "median_book_minus_etf_pct": P(float(np.median(gaps)), 1) if gaps else None,
+                        "note": f"每檔 ETF 從上市（或期間開始）起，跟{who}組合比同一段日子的累積報酬；ETF 用含息市價，已扣管理費"},
+    }
+
+
+def window_json(r: dict, h: int) -> dict:
+    m = r["judge"]
+    market = market_json(r, "因子前 24 名（扣成本）", "因子")
     return {
         "window": [r["start"], r["end"]], "trading_days": r["days"], "coverage_pct": P(m["coverage"], 1),
         "ic": {k: {"mean": R(v["mean"], 4), "t": R(v["t_nw"], 2), "icir": R(v["icir"], 3),
@@ -593,24 +630,13 @@ def window_json(r: dict, h: int) -> dict:
                       "monotonicity": R(r["quintiles"]["monotonic"], 2)},
         "top10_24d": {"median_excess_pct": P(m["top10_24d"]["median_excess"]),
                       "hit_rate_pct": P(m["top10_24d"]["hit_rate"], 1)},
-        "book": {"total_return_pct": P(r["perf_book"]["total"]),
-                 "total_excess_vs_b0_pct": P(r["vs_b0"]["total_excess"]),
-                 "ann_return_pct": P(r["perf_book"]["ann_return"]), "ann_vol_pct": P(r["perf_book"]["ann_vol"]),
-                 "return_to_vol": R(r["perf_book"]["ret_to_vol"], 2), "max_drawdown_pct": P(r["perf_book"]["max_dd"]),
-                 "ann_excess_vs_b0_pct": P(b["ann_excess_net"]) if r["days"] >= TD else None,
-                 "tracking_error_pct": P(r["vs_b0"]["tracking_error"]),
-                 "ir_vs_b0": R(r["vs_b0"]["ir"], 2), "beta_vs_b0": R(b["beta_vs_b0"], 2),
-                 "turnover_per_rebalance_pct": P(b["turnover_per_rebalance"], 1), "ann_cost_pct": P(b["ann_cost"]),
-                 "ann_excess_at_2x_cost_pct": P(r["ann_excess_2x_cost"])},
-        "windows_24d": {"median_pct": P(m["windows_24d"]["median"]), "p10_pct": P(m["windows_24d"]["p10"]),
-                        "p90_pct": P(m["windows_24d"]["p90"]), "win_rate_pct": P(m["windows_24d"]["win_rate"], 1)},
+        "book": book_json(r),
+        "windows_24d": market["windows_24d"],
         "by_year": [{"year": int(y), "months": int(row["months"]), "book_pct": P(row["book"], 1),
                      "b0_pct": P(row["b0"], 1), "0050_pct": P(row["0050"], 1), "taiex_pct": P(row["TAIEX"], 1),
                      "excess_pct": P(row["excess"], 1), "ic": R(row["ic"], 4)} for y, row in r["yearly"].iterrows()],
-        "benchmarks": [bench_json(row, names) for row in r["bench_rows"]],
-        "active_etfs": {"compared": len(etfs), "book_beat": sum(e["book"] > e["etf"] for e in etfs),
-                        "median_book_minus_etf_pct": P(float(np.median(gaps)), 1) if gaps else None,
-                        "note": "每檔 ETF 從上市（或期間開始）起，跟因子組合比同一段日子的累積報酬；ETF 用含息市價，已扣管理費"},
+        "benchmarks": market["benchmarks"],
+        "active_etfs": market["active_etfs"],
         "style_corr": {k: R(v, 2) for k, v in r["style_corr"].items()},
         "library_corr_top": dict(sorted(((k, R(v, 2)) for k, v in m["library_corr"].items() if np.isfinite(v)),
                                         key=lambda kv: -abs(kv[1]))[:5]),
@@ -629,17 +655,29 @@ def public(block, holdout_mode: str):
     return {k: v for k, v in block.items() if k != "holdout_notes"}
 
 
+def load_custom(path: str | None) -> list[dict]:
+    """The author's own tests (YAML or JSON list), shown as self-reported next to the shared judge's."""
+    if not path:
+        return []
+    tests = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
+    ok = lambda t: (isinstance(t, dict) and t.get("name") and t.get("method")  # noqa: E731
+                    and isinstance(t.get("results"), dict) and t["results"])
+    if not isinstance(tests, list) or not all(ok(t) for t in tests):
+        raise SystemExit(f"{path}: need a list of tests, each with name, method and results (a mapping); "
+                         "check it with factor_report_check_tw --custom_tests")
+    return [{**t, "self_reported": True} for t in tests]
+
+
 def build_json(res: dict, decl: dict, h: int, holdout_mode: str, provenance: dict, checks: list,
-               flags: list) -> dict:
+               flags: list, custom: list | None = None) -> dict:
     r = res["research"]
     f = decl.get("factor", {})
     trials = trials_of(f)
     out = {
         "schema": SCHEMA,
+        "kind": "factor",
         "how_to_read": HOW_TO_READ,
-        "factor": {k: f.get(k) for k in ("id", "name", "author", "pod", "one_liner", "formula", "inputs", "data_timing",
-                                         "direction", "horizon_days", "trials", "declared_on", "source",
-                                         "dplan_template", "source_authority")},
+        "factor": {k: f.get(k) for k in FACTOR_KEYS},
         "setup": {
             "universe": "每月底依指數權重（2024-10 前用市值）選上市前 100＋上櫃前 50，"
                         "point-in-time",
@@ -655,6 +693,7 @@ def build_json(res: dict, decl: dict, h: int, holdout_mode: str, provenance: dic
             "flags": flags,
         },
         "facts": {"research": window_json(r, h)},
+        "facts_custom": custom or [],
         "prediction_checks": [{**c, "status_zh": STATUS_ZH[c["status"]]} for c in checks],
         "claims": {"thesis": decl.get("thesis"), "predictions": decl.get("predictions"),
                    "interpretation": public(decl.get("interpretation"), holdout_mode)},
@@ -715,6 +754,8 @@ def _tick_label(v: float, kind: str, step: float) -> str:
         return fnum(v, 3 if step < 0.01 else 2)
     if kind == "corr":
         return fnum(v, 2 if step < 0.1 else 1)
+    if kind == "tilt":  # a percentile drawn as its distance from 0.5; labels show the percentile
+        return fnum(v + 0.5, 2 if step < 0.1 else 1)
     nd = 0 if step >= 0.01 - 1e-12 else 1 if step >= 0.001 - 1e-12 else 2
     return fpct(v, nd, sign=False)
 
@@ -842,7 +883,7 @@ def bar_chart(title: str, cats: list[str], vals: list[float], kind: str, colors:
         out.append(f'<text class="{cls}" x="{L - 8}" y="{y + row / 2 + 4:.1f}" text-anchor="end">{esc(cat)}</text>')
         if v is None or not np.isfinite(v):
             continue
-        label = fnum(v, 2, True) if kind == "corr" else fpct(v, 1)
+        label = fnum(v, 2, True) if kind == "corr" else fnum(v + 0.5, 2) if kind == "tilt" else fpct(v, 1)
         tip = f"{cat}|{label}" + (f"|{tips[i]}" if tips else "")
         bh = min(14.0, row * 0.56)
         out.append(f'<path class="mark" tabindex="0" data-tip="{esc(tip)}" style="fill:var(--{col})" '
@@ -1135,16 +1176,14 @@ def _kpi(label: str, value: str, sub: str) -> str:
             f'<div class="s">{esc(sub)}</div></div>')
 
 
-def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, flags: list, prov: dict) -> str:
-    f, th, pred = decl.get("factor", {}), decl.get("thesis") or {}, decl.get("predictions") or {}
-    it, rv = decl.get("interpretation") or {}, decl.get("review") or {}
-    r = res["research"]
-    m, bk = r["judge"], r["judge"]["book"]
-    ho = res.get("holdout")
-    name = f.get("name") or f.get("id")
-    wins = [w for w in ("research", "holdout") if w in res]
+FACTOR_RULE_NOTE = ("判定規則固定：支持＝方向對且 |t| ≥ 2；方向對、不顯著＝0 < t < 2；相反＝反向且 |t| ≥ 2。"
+                    "最強持有期看平均 IC 在哪個持有期最高（相鄰一格算方向對）。"
+                    "小型／大型以當天股票池市值中位數切；產業中性＝分數減同族群平均；大盤上漲＝股票池同期平均報酬 > 0。"
+                    "預測若在看過結果後才寫，這張表只能當描述。")
 
-    # masthead
+
+def chips_common(f: dict, it: dict, pred: dict, r: dict, ho: dict | None, h: int) -> list[str]:
+    """Pod, research gate, holdout, the author's verdict and pre-registration, as chips."""
     gate_chip = (_chip("good", "✓", f"通過研究期門檻（{h} 日）") if r["gate"]["passed"]
                  else _chip("bad", "✗", f"未通過研究期門檻（{h} 日）"))
     if ho:
@@ -1152,49 +1191,48 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
     else:
         hold_chip = _chip("", "—", "保留期未評分")
     role = it.get("role")
-    chips = [_chip("", "◆", f.get("pod") or "未標五大因子"), gate_chip, hold_chip,
-             _chip("", "→", f"作者建議：{ROLE_ZH.get(role, role)}") if role else _chip("warn", "!", "作者尚未下結論"),
-             _chip("good", "✓", "預測於看結果前登錄") if pred.get("registered") == "before_results"
-             else _chip("warn", "!", "預測未事前登錄")]
-    icm, w24, pb = m["ic"][str(h)], m["windows_24d"], r["perf_book"]
-    kpis = [
-        _kpi(f"{h} 日 IC t 值", fnum(icm["t_nw"], 2),
-             f"IC {fnum(icm['mean'], 4, True)} · 門檻 {ev.DEFAULT_GATE['min_t_nw']:.1f}"),
-        _kpi("24 日超額中位數", fpct(w24["median"], 2),
-             f"勝率 {fpct(w24['win_rate'], 0, False)} · 最差 10% {fpct(w24['p10'], 1)}"),
-        _kpi("年化超額（對 B0）", fpct(bk["ann_excess_net"], 1), f"扣成本；IR {fnum(r['vs_b0']['ir'], 2)}"),
-        _kpi("報酬／波動", fnum(pb["ret_to_vol"], 2),
-             f"年化 {fpct(pb['ann_return'], 1)} · 波動 {fpct(pb['ann_vol'], 1, False)}"),
-        _kpi("最大回撤", fpct(pb["max_dd"], 1), f"B0 {fpct(r['perf_b0']['max_dd'], 1)}"),
-        _kpi("Beta（對 B0）", fnum(bk["beta_vs_b0"], 2), f"每次調整換手 {fpct(bk['turnover_per_rebalance'], 0, False)}"),
-    ]
+    return [_chip("", "◆", f.get("pod") or "未標五大因子"), gate_chip, hold_chip,
+            _chip("", "→", f"作者建議：{ROLE_ZH.get(role, role)}") if role else _chip("warn", "!", "作者尚未下結論"),
+            _chip("good", "✓", "預測於看結果前登錄") if pred.get("registered") == "before_results"
+            else _chip("warn", "!", "預測未事前登錄")]
+
+
+def masthead(kind: str, f: dict, name: str, res: dict, prov: dict, chips: list[str], kpis: list[str],
+             note: str) -> str:
+    r, ho = res["research"], res.get("holdout")
     period = f"研究期 {r['start']} → {r['end']}" + (f" · 保留期 {ho['start']} → {ho['end']}" if ho else "")
-    head = (f'<header><div class="eyebrow">因子報告 · {SCHEMA} · 資料至 {esc(prov["data_through"])} · {esc(period)}</div>'
+    return (f'<header><div class="eyebrow">{kind} · {SCHEMA} · 資料至 {esc(prov["data_through"])} · {esc(period)}</div>'
             f"<h1>{esc(name)}</h1><div class=\"fid\">{esc(f.get('id'))}"
             + (f" · {esc(f.get('author'))}" if f.get("author") else "") + "</div>"
             f'<p class="thesis">{_text(f.get("one_liner"), "作者尚未寫一句話主張")}</p>'
             f'<div class="chips">{"".join(chips)}</div><div class="kpis">{"".join(kpis)}</div>'
-            '<p class="notes">KPI 皆為研究期；book＝每天選分數最高的 24 檔等權、隔日 VWAP 成交、每 5 日調整、'
-            "前 36 名內續抱、扣實際成本；B0＝當月 150 檔等權。</p></header>")
+            f'<p class="notes">{note}</p></header>')
 
-    # 1 definition
-    s1 = _defs([
+
+def section_definition(f: dict, name: str, h: int, kind: str = "factor") -> str:
+    """§1. kind "portfolio": the input is daily target weights, not a score."""
+    rows = [
         ("代號／名稱", esc(f"{f.get('id')} · {name}")),
         ("五大因子", _text(f.get("pod"), "未標")),
         ("公式", f"<pre>{esc(f.get('formula'))}</pre>" if f.get("formula") else _text(None)),
         ("輸入欄位", _text(f.get("inputs"))),
         ("資料時點", _text(f.get("data_timing"))),
-        ("方向", _text(f.get("direction"), "高分＝買進（預設）")),
+        *([("訓練與調參", _text(f.get("training")))] if kind == "portfolio" or f.get("training") else []),
+        ("方向", _text(f.get("direction"), "高分＝買進（預設）")) if kind == "factor"
+        else ("交給評分的東西", esc("每天收盤後決定的目標權重（weights.csv），隔日以 VWAP 成交")),
         ("宣告持有期", esc(f"{h} 日")),
         ("程式來源", f"<code>{esc(f.get('source'))}</code>"),
         ("嘗試次數 N", esc(trials_of(f))),
         ("D-Plan 句型", _text(f.get("dplan_template"), "未填（匯出到比賽 repo 前要填）")),
         ("資料來源機構", _text(f.get("source_authority"), "未填")),
-    ])
-    s1 += ('<p class="notes">比賽規則下的設定：股票池每月底依指數權重選上市前 100＋上櫃前 50（point-in-time）；'
-           "訊號在 t 日收盤後算好，t+1 日以 VWAP 成交；買 0.1425%、賣 0.1425%＋0.3% 證交稅。</p>")
+    ]
+    what = "訊號" if kind == "factor" else "目標權重"
+    return _defs(rows) + ('<p class="notes">比賽規則下的設定：股票池每月底依指數權重選上市前 100＋上櫃前 50（point-in-time）；'
+                          f"{what}在 t 日收盤後算好，t+1 日以 VWAP 成交；買 0.1425%、賣 0.1425%＋0.3% 證交稅。</p>")
 
-    # 2 economic logic
+
+def section_logic(th: dict, checks: list, rule_note: str) -> str:
+    """§2: the author's mechanism and the code's verdict on each declared prediction."""
     mech = th.get("mechanism_type")
     s2 = _defs([
         ("機制類型", esc(MECH_ZH.get(mech, mech)) if mech else _text(None)),
@@ -1213,10 +1251,185 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
     s2 += "<h3>事前預測與程式檢查（研究期）</h3>" + (
         table(["預測", "作者預測", "研究期實際", "判定"], rows, "lwwl") if rows
         else '<p class="missing">宣告檔沒有 predictions，邏輯無從檢查。</p>')
-    s2 += ('<p class="notes">判定規則固定：支持＝方向對且 |t| ≥ 2；方向對、不顯著＝0 < t < 2；相反＝反向且 |t| ≥ 2。'
-           "最強持有期看平均 IC 在哪個持有期最高（相鄰一格算方向對）。"
-           "小型／大型以當天股票池市值中位數切；產業中性＝分數減同族群平均；大盤上漲＝股票池同期平均報酬 > 0。"
-           "預測若在看過結果後才寫，這張表只能當描述。</p>")
+    return s2 + f'<p class="notes">{rule_note}</p>'
+
+
+def section_backtest(res: dict, wins: list, ho: dict | None, label: str, noun: str, year_head: str,
+                     year_cell) -> str:
+    """§4: equity, drawdown, 24-day windows, monthly and yearly excess, costs. label names the book in
+    legends ("因子 24 檔"), noun in sentences ("因子組合"); year_cell(row) fills the last yearly column."""
+    books = pd.concat([res[w]["book"] for w in wins])
+    brets = pd.concat([res[w]["bench_ret"] for w in wins])
+    nav = lambda s: np.exp(np.log1p(s.dropna()).cumsum())  # noqa: E731
+    marks = [(pd.Timestamp(ho["start"]), "保留期 →")] if ho else []
+    eq = line_chart("eq", "淨值走勢", [(label, "s1", nav(books["net"])), ("B0 150 等權", "s2", nav(books["bench"])),
+                                    ("0050 含息", "s3", nav(brets["0050"]))], "nav", marks=marks, zero=1.0)
+    dd = lambda s: nav(s) / np.maximum.accumulate(nav(s)) - 1  # noqa: E731
+    ddc = line_chart("dd", "回撤", [(label, "s1", dd(books["net"])), ("B0", "s2", dd(books["bench"]))], "dd",
+                     height=300, marks=[(d, "") for d, _ in marks], zero=0.0, area=label, width=520)
+    rows = []
+    for w in wins:
+        for y, row in res[w]["yearly"].iterrows():
+            period = f"{y}（{int(row['months'])} 個月）" if row["months"] < 12 else str(y)
+            rows.append([f"{WINDOW_ZH[w]} {period}", fpct(row["book"], 1), fpct(row["b0"], 1), fpct(row["0050"], 1),
+                         fpct(row["TAIEX"], 1), fpct(row["excess"], 1), year_cell(row)])
+    year_table = table(["年", label, "B0", "0050 含息", "加權（不含息）", "超額（對 B0）", year_head], rows)
+    roll = pd.concat([res[w]["roll24"] for w in wins])
+    cost_rows = [[WINDOW_ZH[w], fpct(res[w]["judge"]["book"]["turnover_per_rebalance"], 0, False),
+                  fpct(res[w]["judge"]["book"]["ann_cost"], 2, False), fpct(res[w]["vs_b0"]["total_excess"], 1),
+                  fpct(res[w]["judge"]["book"]["ann_excess_net"] if res[w]["days"] >= TD else None, 1),
+                  fpct(res[w]["ann_excess_2x_cost"], 1)] for w in wins]
+    s4 = ('<div class="grid2">'
+          + figure("淨值走勢", f"起點 1.0；{noun}扣成本，B0 不扣成本；滑過看每天的值", eq,
+                   [(label, "s1"), ("B0 150 等權", "s2"), ("0050 含息", "s3")], table=year_table, wide=True)
+          + figure("回撤", "相對前高的跌幅", ddc, [(label, "s1"), ("B0", "s2")])
+          + figure("24 日超額分布", "任一段 24 個交易日（比賽長度），組合減 B0；紅＝贏、綠＝輸", hist_chart("24 日超額", roll),
+                   table=table(["", "中位數", "最差 10%", "最好 10%", "勝率"],
+                               [[WINDOW_ZH[w], *(fpct(res[w]["judge"]["windows_24d"][k], 2)
+                                                 for k in ("median", "p10", "p90")),
+                                 fpct(res[w]["judge"]["windows_24d"]["win_rate"], 0, False)] for w in wins]))
+          + "</div>")
+    year = lambda s: np.expm1(np.log1p(s).groupby(s.index.year).sum(min_count=1))  # noqa: E731
+    s4 += "<h3>每月超額（組合減 B0）</h3>" + heat_table(pd.concat([res[w]["monthly"] for w in wins]),
+                                                year(books["net"]) - year(books["bench"]),
+                                                pd.Period(ho["start"], "M") if ho else None)
+    s4 += "<h3>逐年</h3>" + year_table
+    s4 += "<h3>成本</h3>" + table(["期間", "每次調整換手", "年化成本", "累積超額", "年化超額", "成本加倍後年化超額"], cost_rows)
+    return s4 + '<p class="notes">不滿一年的期間不年化。</p>'
+
+
+def section_benchmarks(res: dict, wins: list, book_name: str, who: str) -> str:
+    """§5: the book against B0, 0050, the indexes and the active ETFs that hold Taiwan stocks."""
+    names = {"book": book_name, "b0": "B0 150 檔等權", **INDEXES, "etf_avg": "主動式 ETF 平均（台股型）"}
+    s5 = ""
+    for w in wins:
+        rows = []
+        for row in res[w]["bench_rows"]:
+            vs = row.get("book_vs") or {}
+            rows.append([names[row["key"]], str(row["from"].date()), fpct(row["total"], 1), fpct(row["ann_return"], 1),
+                         fpct(row["ann_vol"], 1, False), fnum(row["ret_to_vol"], 2), fpct(row["max_dd"], 1),
+                         fnum(row["beta_taiex"], 2), "—" if row["key"] == "book" else fpct(row["book_total"], 1),
+                         "—" if row["key"] == "book" else fpct(vs.get("total_excess"), 1),
+                         "—" if row["key"] == "book" else fpct(vs.get("month_win"), 0, False)])
+        s5 += (f"<h3>{WINDOW_ZH[w]}：{res[w]['start']} → {res[w]['end']}</h3>"
+               + table(["", "起", "累積", "年化", "波動（年化）", "報酬／波動", "最大回撤", "對加權 β",
+                        f"{who}同期累積", f"{who}多賺（累積）", f"{who}月勝率"], rows, "llrrrrrrrrr"))
+    etf_all = [(w, e) for w in wins for e in res[w]["etf_rows"]]
+    if etf_all:
+        w_last = wins[-1]
+        etfs = sorted(res[w_last]["etf_rows"], key=lambda e: e["book"] - e["etf"])
+        cats = [f"{e['code']} {e['name'].replace('主動', '')}" for e in etfs]
+        diffs = [e["book"] - e["etf"] for e in etfs]
+        tips = [f"ETF {fpct(e['etf'], 1)} · {who} {fpct(e['book'], 1)} · 自 {e['from'].date()}" for e in etfs]
+        beat = sum(d > 0 for d in diffs)
+        s5 += '<div class="grid2">' + figure(
+            f"{who}組合減主動式 ETF",
+            f"{WINDOW_ZH[w_last]}；每檔從上市（或期間開始）起比同一段日子的累積報酬；{who}贏 {beat}／{len(etfs)} 檔",
+            bar_chart(f"{who}減主動式 ETF", cats, diffs, "pct", ["pos" if d > 0 else "neg" for d in diffs], tips,
+                      width=1000, label_w=230, row=24),
+            table=table(["ETF", "起", "交易日", "ETF 累積", f"{who}同期", "差"],
+                        [[f"{e['code']} {e['name']}", str(e["from"].date()), e["days"], fpct(e["etf"], 1),
+                          fpct(e["book"], 1), fpct(e["book"] - e["etf"], 1)]
+                         for e in sorted(etfs, key=lambda e: e["from"])], "llrrrr"),
+            wide=True) + "</div>"
+    return s5 + ('<p class="notes">0050 與主動式 ETF 用 FinMind 還原（含息）收盤價，已扣管理費；加權與櫃買是價格指數，不含股息（台股每年約少 3%）。'
+                 f"{who}組合扣交易成本、不扣管理費，以 VWAP 計價，跟收盤價約差半天，所以 β 與追蹤誤差用週報酬算。"
+                 f"主動式 ETF 只收投資台股的：上市滿 {ETF_MIN_DAYS} 個交易日、和櫃買指數日報酬相關 ≥ {ETF_MIN_CORR}"
+                 "（投資美國或全球的都在 0.81 以下）。主動式 ETF 2025 年 5 月起才陸續上市，樣本短，只能當參考。</p>")
+
+
+def section_custom(custom: list) -> str:
+    """The author's own tests, shown as they were submitted: self-reported, not run by the shared judge."""
+    blocks = []
+    for test in custom:
+        results = test.get("results") or {}
+        blocks.append('<div class="box">' + f'<h3 style="margin-top:0">{esc(test.get("name", "未命名"))}</h3>' + _defs([
+            ("方法", _text(test.get("method"))), ("期間", _text(test.get("window"))),
+            ("股票池", _text(test.get("universe"))), ("成本假設", _text(test.get("costs"))),
+            ("程式", _text(test.get("code_ref"), "未附")),
+        ]) + table(["項目", "數值"], [[k, esc(v)] for k, v in results.items()], "lr") + "</div>")
+    return '<div class="grid2">' + "".join(blocks) + "</div>"
+
+
+def section_verdict(it: dict, rv: dict, flags: list, ho: dict | None) -> str:
+    """§8: the author's stage-2 reading, the code's flags and the independent review."""
+    role = it.get("role")
+    items = "".join(f"<li><code>{esc(x['code'])}</code> {esc(x['detail'])}</li>" for x in flags)
+    flag_list = f'<ul class="tight">{items}</ul>' if flags else '<p class="notes">程式沒有發現警訊。</p>'
+    s8 = '<div class="stack"><div class="box">' + _defs([
+        ("結論", _text(it.get("summary"))),
+        ("公式實際衡量的", _text(it.get("concept_vs_measure"))),
+        ("預測的解讀", _text(it.get("prediction_notes"))),
+        ("其他可能的解釋", _text(it.get("alternatives"))),
+        ("風險與失效情境", _text(it.get("risks"))),
+        ("建議角色", esc(ROLE_ZH.get(role, role)) if role else _text(None)),
+        ("權重上限", _text(it.get("weight_cap_pct") and f"{it['weight_cap_pct']}%", "未填")),
+        ("適合搭配", _text(it.get("pairs_with"), "未填")),
+        ("停用條件", _text(it.get("kill_switch"))),
+        ("待驗證", _text(it.get("open_questions"), "未填")),
+        ("事後假說", _text(it.get("post_hoc"), "無")),
+        *([("保留期觀察（只給人看）", _text(it["holdout_notes"]))] if ho and it.get("holdout_notes") else []),
+    ]) + "</div>"
+    return s8 + ('<div class="grid2"><div class="box"><h3 style="margin-top:0">程式看到的警訊</h3>' + flag_list + "</div>"
+                 + '<div class="box"><h3 style="margin-top:0">獨立審查（A–F）</h3>' + (_defs([
+                     ("審查者", _text(rv.get("reviewer"))), ("日期", _text(rv.get("date"), "—")),
+                     ("判斷", _text(rv.get("judgment"))), ("摘要", _text(rv.get("summary"))),
+                     ("最有力的反例", _text(rv.get("counterexample"))), ("建議修正", _text(rv.get("fix"))),
+                     *([("保留期觀察（只給人看）", _text(rv.get("holdout_notes"), "無"))] if ho else []),
+                 ]) if rv else '<p class="missing">尚未審查（tw_data/alpha_review_prompt_zh.md，用跟作者不同的模型）。</p>')
+                 + "</div></div></div>")
+
+
+def section_provenance(prov: dict, holdout_mode: str) -> str:
+    return _defs([(k, f"<code>{esc(v)}</code>") for k, v in (
+        ("產生時間", prov["generated_at"]), ("程式版本", prov["git_commit"]), ("面板建立", prov["panel_built_at"]),
+        ("資料截至", prov["data_through"]), ("保留期模式", holdout_mode), ("指令", prov["command"]), ("報告格式", SCHEMA))])
+
+
+def page(title: str, head: str, sections: list[tuple[str, str, str, str, str]]) -> str:
+    """The whole HTML document; sections are (id, number, heading, lede, content)."""
+    body = "".join(f'<section id="{sid}"><h2><span class="n">§{n}</span>{esc(t)}</h2>'
+                   + (f'<p class="lede">{esc(lede)}</p>' if lede else "") + content + "</section>"
+                   for sid, n, t, lede, content in sections)
+    return ('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+            f"<title>{esc(title)}</title>"
+            '<meta name="claude:viewport-fit-sides" content="cover">'
+            '<link rel="preconnect" href="https://fonts.googleapis.com">'
+            '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            f'<link rel="stylesheet" href="{FONTS}"><style>{CSS}</style></head>'
+            f'<body><div class="wrap">{head}<main>{body}</main></div><div id="tip" role="tooltip" hidden></div>'
+            f"<script>{JS}</script></body></html>")
+
+
+CUSTOM_LEDE = "作者用自己的系統做的測試，沒有經過共用的評分程式；數字照作者交來的樣子列出，份量比上面的共用評分低。"
+
+
+def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, flags: list, prov: dict,
+               custom: list | None = None) -> str:
+    f, th, pred = decl.get("factor", {}), decl.get("thesis") or {}, decl.get("predictions") or {}
+    it, rv = decl.get("interpretation") or {}, decl.get("review") or {}
+    r = res["research"]
+    m, bk = r["judge"], r["judge"]["book"]
+    ho = res.get("holdout")
+    name = f.get("name") or f.get("id")
+    wins = [w for w in ("research", "holdout") if w in res]
+
+    icm, w24, pb = m["ic"][str(h)], m["windows_24d"], r["perf_book"]
+    kpis = [
+        _kpi(f"{h} 日 IC t 值", fnum(icm["t_nw"], 2),
+             f"IC {fnum(icm['mean'], 4, True)} · 門檻 {ev.DEFAULT_GATE['min_t_nw']:.1f}"),
+        _kpi("24 日超額中位數", fpct(w24["median"], 2),
+             f"勝率 {fpct(w24['win_rate'], 0, False)} · 最差 10% {fpct(w24['p10'], 1)}"),
+        _kpi("年化超額（對 B0）", fpct(bk["ann_excess_net"], 1), f"扣成本；IR {fnum(r['vs_b0']['ir'], 2)}"),
+        _kpi("報酬／波動", fnum(pb["ret_to_vol"], 2),
+             f"年化 {fpct(pb['ann_return'], 1)} · 波動 {fpct(pb['ann_vol'], 1, False)}"),
+        _kpi("最大回撤", fpct(pb["max_dd"], 1), f"B0 {fpct(r['perf_b0']['max_dd'], 1)}"),
+        _kpi("Beta（對 B0）", fnum(bk["beta_vs_b0"], 2), f"每次調整換手 {fpct(bk['turnover_per_rebalance'], 0, False)}"),
+    ]
+    head = masthead("因子報告", f, name, res, prov, chips_common(f, it, pred, r, ho, h), kpis,
+                    "KPI 皆為研究期；book＝每天選分數最高的 24 檔等權、隔日 VWAP 成交、每 5 日調整、"
+                    "前 36 名內續抱、扣實際成本；B0＝當月 150 檔等權。")
 
     # 3 predictive power
     ic_cats = [f"{hh} 日" for hh in ev.HORIZONS]
@@ -1251,83 +1464,6 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
                ("五分位單調性", esc(f"{fnum(q['monotonic'], 2)}（1＝由低到高完全遞增）")),
                ("覆蓋率", esc(f"{fpct(m['coverage'], 1, False)}（股票池中有分數的比例）")),
            ]) + "</div></div>")
-
-    # 4 backtest
-    books = pd.concat([res[w]["book"] for w in wins])
-    brets = pd.concat([res[w]["bench_ret"] for w in wins])
-    nav = lambda s: np.exp(np.log1p(s.dropna()).cumsum())  # noqa: E731
-    marks = [(pd.Timestamp(ho["start"]), "保留期 →")] if ho else []
-    eq = line_chart("eq", "淨值走勢", [("因子 24 檔", "s1", nav(books["net"])), ("B0 150 等權", "s2", nav(books["bench"])),
-                                    ("0050 含息", "s3", nav(brets["0050"]))], "nav", marks=marks, zero=1.0)
-    dd = lambda s: nav(s) / np.maximum.accumulate(nav(s)) - 1  # noqa: E731
-    ddc = line_chart("dd", "回撤", [("因子 24 檔", "s1", dd(books["net"])), ("B0", "s2", dd(books["bench"]))], "dd",
-                     height=300, marks=[(d, "") for d, _ in marks], zero=0.0, area="因子 24 檔", width=520)
-    rows = []
-    for w in wins:
-        for y, row in res[w]["yearly"].iterrows():
-            label = f"{y}（{int(row['months'])} 個月）" if row["months"] < 12 else str(y)
-            rows.append([f"{WINDOW_ZH[w]} {label}", fpct(row["book"], 1), fpct(row["b0"], 1), fpct(row["0050"], 1),
-                         fpct(row["TAIEX"], 1), fpct(row["excess"], 1), fnum(row["ic"], 4, True)])
-    year_table = table(["年", "因子 24 檔", "B0", "0050 含息", "加權（不含息）", "超額（對 B0）", f"IC（{h} 日）"], rows)
-    roll = pd.concat([res[w]["roll24"] for w in wins])
-    cost_rows = [[WINDOW_ZH[w], fpct(res[w]["judge"]["book"]["turnover_per_rebalance"], 0, False),
-                  fpct(res[w]["judge"]["book"]["ann_cost"], 2, False), fpct(res[w]["vs_b0"]["total_excess"], 1),
-                  fpct(res[w]["judge"]["book"]["ann_excess_net"] if res[w]["days"] >= TD else None, 1),
-                  fpct(res[w]["ann_excess_2x_cost"], 1)] for w in wins]
-    s4 = ('<div class="grid2">'
-          + figure("淨值走勢", "起點 1.0；因子組合扣成本，B0 不扣成本；滑過看每天的值", eq,
-                   [("因子 24 檔", "s1"), ("B0 150 等權", "s2"), ("0050 含息", "s3")], table=year_table, wide=True)
-          + figure("回撤", "相對前高的跌幅", ddc, [("因子 24 檔", "s1"), ("B0", "s2")])
-          + figure("24 日超額分布", "任一段 24 個交易日（比賽長度），組合減 B0；紅＝贏、綠＝輸", hist_chart("24 日超額", roll),
-                   table=table(["", "中位數", "最差 10%", "最好 10%", "勝率"],
-                               [[WINDOW_ZH[w], *(fpct(res[w]["judge"]["windows_24d"][k], 2)
-                                                 for k in ("median", "p10", "p90")),
-                                 fpct(res[w]["judge"]["windows_24d"]["win_rate"], 0, False)] for w in wins]))
-          + "</div>")
-    year = lambda s: np.expm1(np.log1p(s).groupby(s.index.year).sum(min_count=1))  # noqa: E731
-    s4 += "<h3>每月超額（組合減 B0）</h3>" + heat_table(pd.concat([res[w]["monthly"] for w in wins]),
-                                                year(books["net"]) - year(books["bench"]),
-                                                pd.Period(ho["start"], "M") if ho else None)
-    s4 += "<h3>逐年</h3>" + year_table
-    s4 += "<h3>成本</h3>" + table(["期間", "每次調整換手", "年化成本", "累積超額", "年化超額", "成本加倍後年化超額"], cost_rows)
-    s4 += '<p class="notes">不滿一年的期間不年化。</p>'
-
-    # 5 benchmarks
-    names = {"book": "因子 24 檔（扣成本）", "b0": "B0 150 檔等權", **INDEXES, "etf_avg": "主動式 ETF 平均（台股型）"}
-    s5 = ""
-    for w in wins:
-        rows = []
-        for row in res[w]["bench_rows"]:
-            vs = row.get("book_vs") or {}
-            rows.append([names[row["key"]], str(row["from"].date()), fpct(row["total"], 1), fpct(row["ann_return"], 1),
-                         fpct(row["ann_vol"], 1, False), fnum(row["ret_to_vol"], 2), fpct(row["max_dd"], 1),
-                         fnum(row["beta_taiex"], 2), "—" if row["key"] == "book" else fpct(row["book_total"], 1),
-                         "—" if row["key"] == "book" else fpct(vs.get("total_excess"), 1),
-                         "—" if row["key"] == "book" else fpct(vs.get("month_win"), 0, False)])
-        s5 += (f"<h3>{WINDOW_ZH[w]}：{res[w]['start']} → {res[w]['end']}</h3>"
-               + table(["", "起", "累積", "年化", "波動（年化）", "報酬／波動", "最大回撤", "對加權 β",
-                        "因子同期累積", "因子多賺（累積）", "因子月勝率"], rows, "llrrrrrrrrr"))
-    etf_all = [(w, e) for w in wins for e in res[w]["etf_rows"]]
-    if etf_all:
-        w_last = wins[-1]
-        etfs = sorted(res[w_last]["etf_rows"], key=lambda e: e["book"] - e["etf"])
-        cats = [f"{e['code']} {e['name'].replace('主動', '')}" for e in etfs]
-        diffs = [e["book"] - e["etf"] for e in etfs]
-        tips = [f"ETF {fpct(e['etf'], 1)} · 因子 {fpct(e['book'], 1)} · 自 {e['from'].date()}" for e in etfs]
-        beat = sum(d > 0 for d in diffs)
-        s5 += '<div class="grid2">' + figure(
-            "因子組合減主動式 ETF", f"{WINDOW_ZH[w_last]}；每檔從上市（或期間開始）起比同一段日子的累積報酬；因子贏 {beat}／{len(etfs)} 檔",
-            bar_chart("因子減主動式 ETF", cats, diffs, "pct", ["pos" if d > 0 else "neg" for d in diffs], tips,
-                      width=1000, label_w=230, row=24),
-            table=table(["ETF", "起", "交易日", "ETF 累積", "因子同期", "差"],
-                        [[f"{e['code']} {e['name']}", str(e["from"].date()), e["days"], fpct(e["etf"], 1),
-                          fpct(e["book"], 1), fpct(e["book"] - e["etf"], 1)]
-                         for e in sorted(etfs, key=lambda e: e["from"])], "llrrrr"),
-            wide=True) + "</div>"
-    s5 += ('<p class="notes">0050 與主動式 ETF 用 FinMind 還原（含息）收盤價，已扣管理費；加權與櫃買是價格指數，不含股息（台股每年約少 3%）。'
-           "因子組合扣交易成本、不扣管理費，以 VWAP 計價，跟收盤價約差半天，所以 β 與追蹤誤差用週報酬算。"
-           f"主動式 ETF 只收投資台股的：上市滿 {ETF_MIN_DAYS} 個交易日、和櫃買指數日報酬相關 ≥ {ETF_MIN_CORR}"
-           "（投資美國或全球的都在 0.81 以下）。主動式 ETF 2025 年 5 月起才陸續上市，樣本短，只能當參考。</p>")
 
     # 6 what it is
     sc = r["style_corr"]
@@ -1378,58 +1514,22 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
           f"保留期只確認：t ≥ {ev.HOLDOUT_GATE['min_t_nw']}、同方向、24 日中位數 > 0。"
           f"嘗試次數 N = {trials}；N 次嘗試下，純運氣的最大 |t| 約 {luck:.1f}（√(2 ln N)）。</p>")
 
-    # 8 interpretation, risks, review
-    items = "".join(f"<li><code>{esc(x['code'])}</code> {esc(x['detail'])}</li>" for x in flags)
-    flag_list = f'<ul class="tight">{items}</ul>' if flags else '<p class="notes">程式沒有發現警訊。</p>'
-    s8 = '<div class="stack"><div class="box">' + _defs([
-        ("結論", _text(it.get("summary"))),
-        ("公式實際衡量的", _text(it.get("concept_vs_measure"))),
-        ("預測的解讀", _text(it.get("prediction_notes"))),
-        ("其他可能的解釋", _text(it.get("alternatives"))),
-        ("風險與失效情境", _text(it.get("risks"))),
-        ("建議角色", esc(ROLE_ZH.get(role, role)) if role else _text(None)),
-        ("權重上限", _text(it.get("weight_cap_pct") and f"{it['weight_cap_pct']}%", "未填")),
-        ("適合搭配", _text(it.get("pairs_with"), "未填")),
-        ("停用條件", _text(it.get("kill_switch"))),
-        ("待驗證", _text(it.get("open_questions"), "未填")),
-        ("事後假說", _text(it.get("post_hoc"), "無")),
-        *([("保留期觀察（只給人看）", _text(it["holdout_notes"]))] if ho and it.get("holdout_notes") else []),
-    ]) + "</div>"
-    s8 += ('<div class="grid2"><div class="box"><h3 style="margin-top:0">程式看到的警訊</h3>' + flag_list + "</div>"
-           + '<div class="box"><h3 style="margin-top:0">獨立審查（A–F）</h3>' + (_defs([
-               ("審查者", _text(rv.get("reviewer"))), ("日期", _text(rv.get("date"), "—")),
-               ("判斷", _text(rv.get("judgment"))), ("摘要", _text(rv.get("summary"))),
-               ("最有力的反例", _text(rv.get("counterexample"))), ("建議修正", _text(rv.get("fix"))),
-               *([("保留期觀察（只給人看）", _text(rv.get("holdout_notes"), "無"))] if ho else []),
-           ]) if rv else '<p class="missing">尚未審查（tw_data/alpha_review_prompt_zh.md，用跟作者不同的模型）。</p>')
-           + "</div></div></div>")
-
-    # 9 provenance
-    s9 = _defs([(k, f"<code>{esc(v)}</code>") for k, v in (
-        ("產生時間", prov["generated_at"]), ("程式版本", prov["git_commit"]), ("面板建立", prov["panel_built_at"]),
-        ("資料截至", prov["data_through"]), ("保留期模式", holdout_mode), ("指令", prov["command"]), ("報告格式", SCHEMA))])
-
-    sections = [("definition", "1", "定義與資料時點", "", s1),
-                ("logic", "2", "經濟邏輯", "回測賺錢不代表機制成立。這裡看作者在看結果前寫下的機制與預測，再由程式逐條核對。", s2),
+    sections = [("definition", "1", "定義與資料時點", "", section_definition(f, name, h)),
+                ("logic", "2", "經濟邏輯", "回測賺錢不代表機制成立。這裡看作者在看結果前寫下的機制與預測，再由程式逐條核對。",
+                 section_logic(th, checks, FACTOR_RULE_NOTE)),
                 ("power", "3", "預測能力", "分數高的股票之後是否真的比較好，以及效果在多長的持有期最強。", s3),
-                ("backtest", "4", "回測：比賽規則下的前 24 名", "隔日 VWAP 成交、扣實際成本、每 5 日調整；跟同一批 150 檔的等權（B0）比。", s4),
-                ("benchmarks", "5", "同期比較：大盤與主動式 ETF", "同一段日子，跟 0050、加權指數、櫃買指數與投資台股的主動式 ETF 比。", s5),
+                ("backtest", "4", "回測：比賽規則下的前 24 名", "隔日 VWAP 成交、扣實際成本、每 5 日調整；跟同一批 150 檔的等權（B0）比。",
+                 section_backtest(res, wins, ho, "因子 24 檔", "因子組合", f"IC（{h} 日）",
+                                  lambda row: fnum(row["ic"], 4, True))),
+                ("benchmarks", "5", "同期比較：大盤與主動式 ETF", "同一段日子，跟 0050、加權指數、櫃買指數與投資台股的主動式 ETF 比。",
+                 section_benchmarks(res, wins, "因子 24 檔（扣成本）", "因子")),
                 ("anatomy", "6", "它其實是什麼", "分數高是因為選股能力，還是只是偏向某種風格、某些產業，或跟已有的因子重複。", s6),
                 ("robustness", "7", "穩健性", "換個切法還在不在：大小型、產業內、多空頭、各年度。", s7),
-                ("verdict", "8", "解讀、風險與使用建議", "作者看過結果後的解讀（第二階段）、程式警訊與獨立審查。", s8),
-                ("provenance", "9", "可重現性", "", s9)]
-    body = "".join(f'<section id="{sid}"><h2><span class="n">§{n}</span>{esc(t)}</h2>'
-                   + (f'<p class="lede">{esc(lede)}</p>' if lede else "") + content + "</section>"
-                   for sid, n, t, lede, content in sections)
-    return ('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-            f"<title>{esc(name)} 因子報告</title>"
-            '<meta name="claude:viewport-fit-sides" content="cover">'
-            '<link rel="preconnect" href="https://fonts.googleapis.com">'
-            '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-            f'<link rel="stylesheet" href="{FONTS}"><style>{CSS}</style></head>'
-            f'<body><div class="wrap">{head}<main>{body}</main></div><div id="tip" role="tooltip" hidden></div>'
-            f"<script>{JS}</script></body></html>")
+                *([("custom", "7b", "自行測試（自評）", CUSTOM_LEDE, section_custom(custom))] if custom else []),
+                ("verdict", "8", "解讀、風險與使用建議", "作者看過結果後的解讀（第二階段）、程式警訊與獨立審查。",
+                 section_verdict(it, rv, flags, ho)),
+                ("provenance", "9", "可重現性", "", section_provenance(prov, holdout_mode))]
+    return page(f"{name} 因子報告", head, sections)
 
 
 # --------------------------------------------------------------------------- declaration and prompts
@@ -1439,8 +1539,8 @@ def declaration_template(known: dict, h: int) -> str:
     """The stage-1 YAML block from factor_declare_prompt_zh.md, with what the source already knows."""
     text = DECLARE_PROMPT.read_text(encoding="utf-8")
     block = re.search(r"```yaml\n(.*?)```", text, re.S).group(1)
-    fill = {"id": known.get("id"), "name": known.get("name"), "pod": known.get("pod"),
-            "formula": known.get("formula"), "one_liner": known.get("one_liner"), "horizon_days": h}
+    fill = {**{k: known.get(k) for k in ("id", "name", "pod", "formula", "one_liner", "direction", "training")},
+            "horizon_days": h}
     for key, value in fill.items():
         if value is None:
             continue
@@ -1488,6 +1588,7 @@ def main() -> None:
     src.add_argument("--factor_py", help="factor.py in the loop's format (reads daily_pv.h5, writes result.h5)")
     src.add_argument("--alpha_file", help="values: CSV (datetime, instrument, value), parquet or HDF5")
     parser.add_argument("--declaration", help="the author's YAML (factor_declare_prompt_zh.md, then stage 2)")
+    parser.add_argument("--custom_tests", help="YAML/JSON list of the author's own tests (self-reported)")
     parser.add_argument("--horizon", type=int, choices=ev.HORIZONS,
                         help="default: the declaration's horizon_days, else 5")
     parser.add_argument("--holdout", default="none", choices=["none", "status", "full"])
@@ -1496,6 +1597,7 @@ def main() -> None:
     parser.add_argument("--refresh_benchmarks", action="store_true")
     args = parser.parse_args()
 
+    custom = load_custom(args.custom_tests)
     panel = pd.read_hdf(ALPHA_DIR / "alpha_panel.h5", key="data")
     if args.as_of:
         panel = panel[panel.index.get_level_values(0) <= pd.Timestamp(args.as_of)]
@@ -1532,12 +1634,13 @@ def main() -> None:
     checks = check_predictions(decl.get("predictions") or {}, res["research"], h)
     flags = code_flags(res, decl, h)
     prov = provenance(panel)
-    report = build_json(res, decl, h, args.holdout, prov, checks, flags)
+    report = build_json(res, decl, h, args.holdout, prov, checks, flags, custom)
 
     # compact: the LLM reads it, and every space is a token
     (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":"), default=str),
                                      encoding="utf-8")
-    (out / "report.html").write_text(build_html(res, decl, h, args.holdout, checks, flags, prov), encoding="utf-8")
+    (out / "report.html").write_text(build_html(res, decl, h, args.holdout, checks, flags, prov, custom),
+                                     encoding="utf-8")
     (out / "prompt_stage2.md").write_text(fill_report_prompt(report, decl), encoding="utf-8")
     if not args.declaration:
         (out / "declaration.yaml").write_text(declaration_template(known, h), encoding="utf-8")

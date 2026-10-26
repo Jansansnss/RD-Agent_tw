@@ -3,6 +3,21 @@
 > Living document. Whoever (human or model) changes the project updates this file in the same
 > commit. Newest snapshot on top; keep older snapshots below as history.
 
+## Snapshot — 2026-10-27: strategy reports and the teammates' hand-in contract
+
+**Strategy (weights) reports (T11, D33).** Jans: 隊友架構跟我不一樣、測試也不同，要統一報告模板；隊友交
+每天的持股權重，也有模型公式. `tw_data/portfolio_report_tw.py` turns daily target weights plus the
+declaration into the same two outputs (`kind: portfolio`): the book trades the weights at the next
+day's VWAP with real costs and keeps unsellable names; a selection test replaces IC; every decision
+day is checked against the contest's rules and the v2 buffers. rev_accel's top 24 handed in as
+weights reproduces the shared book (1,271 of 1,288 days identical; the rest is one stock with no
+VWAP for 7 days in 2023-08). Declarations gain `training` (flagged `training_unstated` when a
+strategy omits it). Teammates hand in three files (`docs/tw/REPORT_HANDIN.md`) and check them with
+`tw_data/factor_report_check_tw.py` + `factor_report_schema_tw.json` (standalone; every report.json
+so far validates, and the checker catches leaked holdout numbers). Both teammate prompts now cover
+strategies. **Open for Jans:** push RD-Agent (commits since 4140ff1b) and the contest branch
+`rdagent-factor-reports`; allow-list `review_llm_tw.sh` to start the pending DeepSeek reviews.
+
 ## Snapshot — 2026-10-26 (night): Alisa's ideas, third campaign, team industry groups
 
 **Alisa's strategy review** became ideas B1–B14 (`data/alpha_ideas.md`), first scored as fixed

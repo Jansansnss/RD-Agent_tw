@@ -111,7 +111,17 @@ python -m rdagent.scenarios.qlib.tw_data.factor_report_tw --card <card> | --idea
 ```
 
 Output: `data/alpha_tw/reports/<id>/` (`report.json`, `report.html`, `prompt_stage2.md`, and a
-pre-filled `declaration.yaml` when no declaration was given). `--holdout` defaults to `none`.
+pre-filled `declaration.yaml` when no declaration was given). `--holdout` defaults to `none`;
+`--custom_tests <yaml>` adds the author's own (self-reported) tests.
+
+A teammate's strategy (daily target weights, FACTOR_REPORT §7; what to hand in: `docs/tw/REPORT_HANDIN.md`),
+and the checker for hand-ins and finished reports (pandas + PyYAML only, also copied to the contest repo):
+
+```bash
+python -m rdagent.scenarios.qlib.tw_data.portfolio_report_tw --weights <weights.csv> --declaration <id>.yaml --holdout status
+python -m rdagent.scenarios.qlib.tw_data.factor_report_check_tw --weights <weights.csv> --declaration <id>.yaml [--custom_tests <yaml>]
+python -m rdagent.scenarios.qlib.tw_data.factor_report_check_tw --report data/alpha_tw/reports/<id>/report.json
+```
 
 Second, non-Claude A–F review of a library card (Jans runs it: it reads the API key from `.env`,
 which Claude sessions may not; a few cents each; stops under the $0.50 DeepSeek reserve, D27):

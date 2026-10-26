@@ -1,8 +1,9 @@
 # 因子報告規格（tw-factor-report/1）
 
-> 2026-10-26 起。每個要交給隊伍或決策模型（「大腦」）判斷的因子，都交一份這種報告。
+> 2026-10-26 起。每個要交給隊伍或決策模型（「大腦」）判斷的因子或策略，都交一份這種報告。
 > 數字由程式算，文字由作者寫；同一份內容輸出兩個版本：給人看的 `report.html`，給大腦讀的 `report.json`。
 > 範例：營收加速（`docs/tw/factor_reports/rev_accel.yaml` → `data/alpha_tw/reports/rev_accel/`）。
+> 隊友要交什麼、怎麼自己檢查：`docs/tw/REPORT_HANDIN.md`（一頁）。每天交持股權重的策略，報告見本文第 7 節。
 
 ## 0. 為什麼要固定格式
 
@@ -23,6 +24,8 @@
 | 7 穩健性 | 大型／小型、產業中性、大盤漲／跌、門檻結果、嘗試次數 | 程式 | 換個切法還在不在 |
 | 8 解讀與建議 | 結論、其他解釋、風險、建議角色、權重上限、停用條件、待驗證、事後假說；程式警訊；獨立審查 | 作者（第二階段）＋程式＋審查者 | 給大腦可以照做、也可以停用的建議 |
 | 9 可重現性 | 產生時間、程式版本、面板建立時間、資料截至、指令 | 程式 | 12/2 code review 要能重跑 |
+
+策略報告的 §3、§4、§6、§7 內容不同，見第 7 節。作者用自己的系統做的測試另列一節「自行測試（自評）」。
 
 ## 2. 怎麼證明公式合乎邏輯與經濟學
 
@@ -116,17 +119,22 @@
 
 | 欄位 | 內容 |
 |---|---|
-| `schema` | `tw-factor-report/1`；欄位改了就升版，大腦要檢查 |
-| `how_to_read` | 四句閱讀說明，讓沒看過這份規格的模型也讀得懂 |
-| `factor` | 宣告的定義（§1） |
+| `schema` | `tw-factor-report/1`；欄位改名或刪除就升版，大腦要檢查 |
+| `kind` | `factor`（分數）或 `portfolio`（每天的持股權重，第 7 節） |
+| `how_to_read` | 五句閱讀說明，讓沒看過這份規格的模型也讀得懂 |
+| `factor` | 宣告的定義（§1），策略也用這一欄 |
 | `setup` | 股票池、標籤、成本、資料截至、保留期模式 |
 | `verdict_by_code` | 研究期門檻、保留期狀態、嘗試次數與運氣 t、警訊 `flags` |
 | `facts.research` | §3–§7 的所有數字 |
 | `facts.holdout` | 同上（`full`），或只有一句「刻意不給」 |
+| `facts_custom` | 作者自己的測試，照交來的樣子列出，標 `self_reported` |
 | `prediction_checks` | 每條事前預測的程式判定 |
 | `claims` | `thesis`、`predictions`、`interpretation`（作者） |
 | `review` | 獨立審查摘要 |
 | `provenance` | 產生時間、程式版本、指令 |
+
+格式定義在 `tw_data/factor_report_schema_tw.json`（JSON Schema）。`tw_data/factor_report_check_tw.py --report report.json`
+檢查格式、保留期數字有沒有漏進給大腦的版本，以及 claims、review 有沒有提到個股。
 
 **建議放進大腦系統提示的閱讀規則**：
 
@@ -149,8 +157,8 @@
    python -m rdagent.scenarios.qlib.tw_data.factor_report_tw --alpha_file <values.csv>  # 自己算好的分數
    ```
 
-   - 沒有環境的隊友，交一個 CSV 就好：欄位 `datetime,instrument,value`，股票代號當文字、值越高越想買、每個值在當天收盤時已知（或交公式給 Jans 代算）。
-   - 選項：`--horizon` 改宣告持有期；`--holdout none|status|full`；`--as_of YYYY-MM-DD` 把資料截在某天，做那天看得到的報告（回測大腦時要用）。
+   - 沒有環境的隊友照 `REPORT_HANDIN.md` 交檔：因子交 `datetime,instrument,value`，策略交每天的目標權重 `datetime,instrument,weight`（第 7 節）；交件前用 `factor_report_check_tw.py` 自己檢查。
+   - 選項：`--horizon` 改宣告持有期；`--holdout none|status|full`；`--as_of YYYY-MM-DD` 把資料截在某天，做那天看得到的報告（回測大腦時要用）；`--custom_tests <yaml>` 附上作者自己的測試（標成自評）。
    - 輸出在 `data/alpha_tw/reports/<id>/`（不進 git，隨時可以重算）：`report.json`、`report.html`、`prompt_stage2.md`；沒給宣告時另有預先填好的 `declaration.yaml`。一次約 1 分鐘、0.6 GB 記憶體。
 3. **第二階段（作者或任何 LLM）**：把 `prompt_stage2.md` 整份貼給 LLM（輸入已自動填好），把回覆的 `interpretation` 區塊貼回宣告檔，再跑一次第 2 步。
 4. **獨立審查（要給大腦採用的候選才需要）**：`tw_data/alpha_review_prompt_zh.md`，用跟作者不同的模型，把 A–F 的摘要填進宣告檔的 `review`。因子庫的卡片可以直接跑 `factor_review_llm_tw`（在 WSL 自己跑，API 金鑰只在那個程式裡讀；每份約幾美分，DeepSeek 餘額低於 0.5 美元會自動停）；加 `--prompt_only` 只產生提示，可以貼給任何模型：
@@ -177,10 +185,33 @@
 | `tw_data/factor_declare_prompt_zh.md` | 第一階段：想法 → 宣告 | 整份複製，在【隊友的想法】貼上自己的想法、規則或程式 |
 | `tw_data/factor_report_prompt_zh.md` | 第二階段：數字 → 解讀 | 不用手填：產生器寫出的 `prompt_stage2.md` 已帶入宣告和 report.json |
 | `tw_data/alpha_review_prompt_zh.md` | 獨立審查（A–F） | 交給跟作者不同的模型 |
+| `docs/tw/REPORT_HANDIN.md` | 交件 | 一頁：交哪三個檔、格式、交件後的流程 |
+| `tw_data/factor_report_check_tw.py` | 交件前、交給大腦前 | 檢查權重或分數、宣告、自行測試與 report.json；只需 pandas 與 PyYAML，可以單獨複製出去 |
 
 三份提示的共同規則：不准自己生數字、研究期與保留期分開講、看過結果才想到的解釋標成事後假說、不知道就寫 null。
 
-## 7. 參考文獻
+## 7. 策略報告（kind = portfolio）
+
+隊友的系統常常直接輸出每天的持股權重，而不是每檔一個分數。這種策略用 `portfolio_report_tw` 出報告：股票池、期間、
+基準、成本、兩個版本和宣告都跟因子報告相同，`report.json` 的 `kind` 是 `portfolio`。
+
+```bash
+python -m rdagent.scenarios.qlib.tw_data.portfolio_report_tw --weights <weights.csv> --declaration <id>.yaml --holdout status
+```
+
+| § | 因子報告 | 策略報告 |
+|---|---|---|
+| 3 | IC、五分位、前 10 檔 | 選股能力：持股依權重的 h 日報酬減當月 150 檔平均（`selection`），加上等權版本與贏過中位數的比例 |
+| 4 | 程式選前 24 名，每 5 日調整 | 照作者的權重：決定日的下一個交易日以 VWAP 成交，沒寫的日子不交易、持股隨價格漂移；當天沒有成交價的股票買不到也賣不掉 |
+| 6 | 跟常見風格的相關、跟因子庫的相關 | 持股在各風格的平均百分位（`style_exposure`，0.5 為中性）、平均檔數、現金、族群 |
+| 7 | 穩健性看 IC | 同樣的切法改看持股超額；另外逐個決定日檢查比賽規則與 v2 作戰規劃的緩衝 |
+
+- **門檻**（宣告的持有期）：研究期持股超額 t ≥ 3、至少 3 個完整年度為正、24 日超額中位數 > 0；保留期 t ≥ 2、24 日中位數 > 0。沒有因子庫相關與覆蓋率兩項。比賽規則另列在 `verdict_by_code.contest_rules`，違反不影響門檻，但會標警訊。
+- **另外的警訊**：持股明顯偏向某個風格（平均百分位 > 0.8 或 < 0.2）、年化換手超過 24 倍（等於因子組合每 5 日換手 50%）、違反比賽規則、研究期的決定日少於 50 天、沒寫 `training`。
+- **最大的風險是樣本內。** 模型若用 2021–2026 年的資料訓練或調參，研究期的數字就是拿考過的題目再考一次，程式看不出來。所以策略的宣告必須寫 `training`（用哪段資料訓練、調整，多久重訓），大腦要把它看得跟 `registered` 一樣重。
+- **驗證**：營收加速的前 24 名每 5 天交一次權重，算出的組合跟共用評分的 book 在 1,288 天裡有 1,271 天完全相同（日報酬相關 0.99998）。其餘 17 天起因於 2023 年 8 月一檔該賣的股票連續 7 天沒有成交價：策略報告照比賽規則繼續持有，共用評分的 book 則把它重設成等權。
+
+## 8. 參考文獻
 
 - Harvey, Liu & Zhu (2016), "…and the Cross-Section of Expected Returns", *Review of Financial Studies*：新因子的 t 至少 3。
 - McLean & Pontiff (2016), "Does Academic Research Destroy Stock Return Predictability?", *Journal of Finance*：發表後報酬縮水。

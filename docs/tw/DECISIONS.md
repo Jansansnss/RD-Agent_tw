@@ -307,6 +307,21 @@ overlap because the AI rally moved both). Nothing under a year is annualized. Co
 predictions fit common mechanisms only (others are listed unchecked). Revisit when the decision
 model's input format is fixed, or when a review finds a disguise the flags miss.
 
+**D33 — Teammates hand in weights and a declaration, not reports; one judge scores strategies too** *(2026-10-27)*
+Jans: teammates' architectures and tests differ; should their LLMs read our code, or follow a very
+complete guide? Neither: we fix the hand-in, not their process. A strategy hands in daily target
+weights (`datetime, instrument, weight`, decided after the close, filled at the next day's VWAP),
+a factor its scores, both with the stage-1 declaration; own tests go in a YAML shown as
+self-reported (`facts_custom`). `portfolio_report_tw.py` scores weights with the contest's timing,
+costs and untradable days (it reproduces the shared top-24 book on 1,271 of 1,288 days; the rest is
+one unsellable stock kept, as the contest would) and replaces IC with a selection test: the held
+names' h-day return, weighted as held, minus the universe mean. Contest rules and the v2 buffers are
+checked on every decision day. Declarations gain `training` (which data trained or tuned the model):
+the report cannot see in-sample fitting, so a strategy without it is flagged. A JSON Schema and a
+standalone checker (pandas + PyYAML, copied to the contest repo) let a teammate's LLM verify files
+before handing in. Cost: a teammate's walk-forward claim is taken on trust; their own tests are not
+re-run. Revisit when the brain's input format is fixed or a teammate needs intraday fills.
+
 ---
 
 *Template for new entries:*
