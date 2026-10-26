@@ -15,8 +15,10 @@ VWAP for 7 days in 2023-08). Declarations gain `training` (flagged `training_uns
 strategy omits it). Teammates hand in three files (`docs/tw/REPORT_HANDIN.md`) and check them with
 `tw_data/factor_report_check_tw.py` + `factor_report_schema_tw.json` (standalone; every report.json
 so far validates, and the checker catches leaked holdout numbers). Both teammate prompts now cover
-strategies. **Open for Jans:** push RD-Agent (commits since 4140ff1b) and the contest branch
-`rdagent-factor-reports`; allow-list `review_llm_tw.sh` to start the pending DeepSeek reviews.
+strategies. **Second, non-Claude reviews** (deepseek-v4-pro, run by Jans 10/26, $0.07): both cards
+"conditionally reasonable", the same verdict as Claude's; new open questions: is low Amihud just low
+volatility (both cards), and single-month revenue seasonality (ALPHA_REVIEWS, third review).
+**Open for Jans:** push RD-Agent and the contest branch `rdagent-factor-reports`.
 
 ## Snapshot — 2026-10-26 (night): Alisa's ideas, third campaign, team industry groups
 
