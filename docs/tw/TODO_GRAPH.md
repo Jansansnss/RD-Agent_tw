@@ -214,6 +214,10 @@ stage 1 (declaration, before results) and stage 2 (interpretation), declarations
   Example `docs/tw/factor_reports/rev_accel.yaml`. Next: reports for the two confirmed cards; the
   spec and prompts into the contest repo for teammates; the decision model's prompt reads
   `report.json` by the FACTOR_REPORT §4 rules.
+- 2026-10-26 (evening): reports and second A–F reviews for both confirmed cards (ALPHA_REVIEWS).
+  Both read as style tilts (cap 20%): large + liquid adds ~nothing to a top-24 book in research;
+  sales yield works only in down markets and only in the smaller half. Reviewer holdout notes
+  stay out of report.json (`holdout_notes`).
 
 ### `[ ]` S5 · Raw `TaiwanStockPrice` → exact VWAP — `risky` (collector)
 Collect raw daily prices (by date, ~4.4K calls) so VWAP is exact everywhere and FinMind's adjusted

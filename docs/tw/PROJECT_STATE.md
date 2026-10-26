@@ -19,8 +19,21 @@ wrote both stages; predictions marked after_results): direction, peak horizon (m
 stronger), and the IC sits almost entirely in up markets (down-market t 0.45). 21 active ETFs hold
 Taiwan stocks; over the research window the rev_accel book beat 5 of the 12 listed by then.
 
-**Not done:** reports for the two holdout-confirmed cards; copying the spec and prompts into the
-contest repo (`docs/rdagent/`) for teammates; the decision model's own prompt.
+**Reports for the two holdout-confirmed cards** (Jans: 產生目前有通過保留期的因子做成這種報告，也進行
+獨立審查). Declarations `docs/tw/factor_reports/{LiquiditySize_Rank_20d,SalesYield_LiquiditySize_70_30}.yaml`:
+stage 1 restates the loop's card.json (author deepseek-flash), predictions derived afterwards
+(after_results), interpretation and A–F review by Claude (D25); full A–F in `ALPHA_REVIEWS.md`.
+New findings: both research t values sit within 0.3 of the luck maximum for the loop's search so far
+(N = 37 and 57). Large + liquid buys almost nothing for a top-24 book (research +0.83%/yr vs B0, IR
+0.11, and 87 points behind 0050); its holdout gain is May–June. Sales yield works only in down
+markets (research t 5.66 vs 0.30 up; holdout the same) and only in the smaller half, and its
+research excess turned negative in 2025 and early 2026. Both verdicts: style tilt, cap 20%. A
+reviewer's holdout observations go in `holdout_notes`, shown in the HTML and kept out of
+report.json unless `--holdout full`. Using DeepSeek as a second, non-Claude reviewer needs the API
+key, which this session may not read.
+
+**Not done:** copying the spec, prompts and reports into the contest repo (`docs/rdagent/`) for
+teammates; the decision model's own prompt.
 
 ## Snapshot — 2026-10-25: flash campaign; 2 alphas confirmed on the holdout
 

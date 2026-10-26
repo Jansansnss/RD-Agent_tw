@@ -536,7 +536,7 @@ def code_flags(res: dict, decl: dict, h: int) -> list[dict]:
     hurdle = math.sqrt(2 * math.log(trials)) if trials > 1 else 0.0
     t = r["judge"]["ic"][str(h)]["t_nw"]
     if trials > 1 and abs(t) < hurdle + 1:
-        add("data_mining_risk", f"試了 {trials} 個版本，純運氣的最大 |t| 約 {hurdle:.1f}；本因子 t {t:+.2f} 離它不到 1")
+        add("data_mining_risk", f"嘗試 {trials} 次，純運氣的最大 |t| 約 {hurdle:.1f}；本因子 t {t:+.2f} 離它不到 1")
     if (decl.get("predictions") or {}).get("registered") != "before_results":
         add("predictions_not_preregistered", "預測不是在看結果之前寫下的，邏輯檢查只能當描述")
     if f.get("pod") not in PODS:
@@ -621,6 +621,14 @@ def window_json(r: dict, h: int) -> dict:
     }
 
 
+def public(block, holdout_mode: str):
+    """A claims or review block as the decision model may see it: a reviewer's `holdout_notes` stay
+    in the HTML unless the report runs with --holdout full."""
+    if not isinstance(block, dict) or holdout_mode == "full":
+        return block
+    return {k: v for k, v in block.items() if k != "holdout_notes"}
+
+
 def build_json(res: dict, decl: dict, h: int, holdout_mode: str, provenance: dict, checks: list,
                flags: list) -> dict:
     r = res["research"]
@@ -649,8 +657,8 @@ def build_json(res: dict, decl: dict, h: int, holdout_mode: str, provenance: dic
         "facts": {"research": window_json(r, h)},
         "prediction_checks": [{**c, "status_zh": STATUS_ZH[c["status"]]} for c in checks],
         "claims": {"thesis": decl.get("thesis"), "predictions": decl.get("predictions"),
-                   "interpretation": decl.get("interpretation")},
-        "review": decl.get("review"),
+                   "interpretation": public(decl.get("interpretation"), holdout_mode)},
+        "review": public(decl.get("review"), holdout_mode),
         "provenance": provenance,
     }
     if "holdout" in res:
@@ -1179,7 +1187,7 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
         ("方向", _text(f.get("direction"), "高分＝買進（預設）")),
         ("宣告持有期", esc(f"{h} 日")),
         ("程式來源", f"<code>{esc(f.get('source'))}</code>"),
-        ("試過幾個版本", esc(trials_of(f))),
+        ("嘗試次數 N", esc(trials_of(f))),
         ("D-Plan 句型", _text(f.get("dplan_template"), "未填（匯出到比賽 repo 前要填）")),
         ("資料來源機構", _text(f.get("source_authority"), "未填")),
     ])
@@ -1368,7 +1376,7 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
           f'至少 {gate["min_years_positive"]} 個完整年度 IC 為正、24 日超額中位數 > 0、'
           f'與因子庫相關 ≤ {gate["max_library_corr"]}、覆蓋率 ≥ {gate["min_coverage"]:.0%}。'
           f"保留期只確認：t ≥ {ev.HOLDOUT_GATE['min_t_nw']}、同方向、24 日中位數 > 0。"
-          f"這個想法試過 {trials} 個版本；{trials} 次嘗試下，純運氣的最大 |t| 約 {luck:.1f}（√(2 ln N)）。</p>")
+          f"嘗試次數 N = {trials}；N 次嘗試下，純運氣的最大 |t| 約 {luck:.1f}（√(2 ln N)）。</p>")
 
     # 8 interpretation, risks, review
     items = "".join(f"<li><code>{esc(x['code'])}</code> {esc(x['detail'])}</li>" for x in flags)
@@ -1385,12 +1393,14 @@ def build_html(res: dict, decl: dict, h: int, holdout_mode: str, checks: list, f
         ("停用條件", _text(it.get("kill_switch"))),
         ("待驗證", _text(it.get("open_questions"), "未填")),
         ("事後假說", _text(it.get("post_hoc"), "無")),
+        *([("保留期觀察（只給人看）", _text(it["holdout_notes"]))] if ho and it.get("holdout_notes") else []),
     ]) + "</div>"
     s8 += ('<div class="grid2"><div class="box"><h3 style="margin-top:0">程式看到的警訊</h3>' + flag_list + "</div>"
            + '<div class="box"><h3 style="margin-top:0">獨立審查（A–F）</h3>' + (_defs([
                ("審查者", _text(rv.get("reviewer"))), ("日期", _text(rv.get("date"), "—")),
                ("判斷", _text(rv.get("judgment"))), ("摘要", _text(rv.get("summary"))),
                ("最有力的反例", _text(rv.get("counterexample"))), ("建議修正", _text(rv.get("fix"))),
+               *([("保留期觀察（只給人看）", _text(rv.get("holdout_notes"), "無"))] if ho else []),
            ]) if rv else '<p class="missing">尚未審查（tw_data/alpha_review_prompt_zh.md，用跟作者不同的模型）。</p>')
            + "</div></div></div>")
 

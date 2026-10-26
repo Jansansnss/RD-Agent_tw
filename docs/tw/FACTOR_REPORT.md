@@ -109,8 +109,8 @@
 3. **每個數字都在某個期間底下**（`facts.research`、`facts.holdout`）。
 4. **不放股票代號與名稱**，只放族群與市值分布，避免模型用記憶判斷個股（ALPHA_FACTORY §7）。
 5. **不放圖**，圖要說的事用數字給（逐年表、五分位陣列、24 日超額分布摘要）。
-6. **保留期預設不給數字。** `--holdout none`：只有研究期；`status`：人看得到保留期，JSON 只有通過與否；`full`：JSON 也帶保留期數字，只能給不在該期間被測試的模型。
-7. **精簡。** 約 10 KB，一次比較 10 個因子約 5 萬 tokens。
+6. **保留期預設不給數字。** `--holdout none`：只有研究期；`status`：人看得到保留期，JSON 只有通過與否；`full`：JSON 也帶保留期數字，只能給不在該期間被測試的模型。審查者看過保留期的觀察寫在 `holdout_notes`，同樣只有 `full` 才會進 JSON。
+7. **精簡。** 含作者與審查文字約 10–15 KB，一次比較 10 個因子約 5 萬 tokens。
 
 頂層欄位：
 
@@ -160,12 +160,15 @@
      reviewer: deepseek-v4-pro   # 跟作者不同
      date: 2026-10-27
      judgment: 有條件合理          # 合理／有條件合理／解釋不成立／資訊不足
-     summary: ...
+     summary: ...                 # 不寫股票名稱
      counterexample: ...
      fix: ...
+     holdout_notes: []            # 看過保留期的觀察；只給人看（--holdout full 才進 JSON）
    ```
 
 5. **交付**：`report.json` 給大腦；`report.html` 給人。
+
+**因子迴圈產生的卡片**（範例：`LiquiditySize_Rank_20d`、`SalesYield_LiquiditySize_70_30`）：作者是迴圈的 LLM，它的假說在 `card.json`。第一階段照實轉述，作者沒寫的欄位寫「作者未說明」；迴圈沒有登錄五條預測，所以由審查者依作者的主張推得，標 `after_results`；`trials` 填迴圈累計評分到這張為止的因子數。審查用跟迴圈不同的模型（D25），完整 A–F 記在 `ALPHA_REVIEWS.md`。
 
 ## 6. 給隊友的提示
 
